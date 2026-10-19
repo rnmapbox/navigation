@@ -26,6 +26,7 @@ import type { FeatureCollection } from 'geojson';
 
 import env from '../env.json';
 import NavigationViewScreen from './NavigationViewScreen';
+import RNNavigationViewScreen from './RNNavigationViewScreen';
 import RouteLifecycleScreen from './RouteLifecycleScreen';
 
 // Mapbox HQ (San Francisco) to the Ferry Building.
@@ -66,7 +67,7 @@ function formatDuration(seconds: number) {
 
 export default function App() {
   const [screen, setScreen] = useState<
-    'navigation' | 'routes' | 'navigationView'
+    'navigation' | 'routes' | 'navigationView' | 'rnNavigationView'
   >('navigation');
   switch (screen) {
     case 'navigation':
@@ -74,6 +75,7 @@ export default function App() {
         <NavigationScreen
           onOpenRouteLifecycle={() => setScreen('routes')}
           onOpenNavigationView={() => setScreen('navigationView')}
+          onOpenRNNavigationView={() => setScreen('rnNavigationView')}
         />
       );
     case 'routes':
@@ -86,15 +88,25 @@ export default function App() {
           onClose={() => setScreen('navigation')}
         />
       );
+    case 'rnNavigationView':
+      return (
+        <RNNavigationViewScreen
+          origin={ORIGIN}
+          destination={DESTINATION}
+          onClose={() => setScreen('navigation')}
+        />
+      );
   }
 }
 
 function NavigationScreen({
   onOpenRouteLifecycle,
   onOpenNavigationView,
+  onOpenRNNavigationView,
 }: {
   onOpenRouteLifecycle: () => void;
   onOpenNavigationView: () => void;
+  onOpenRNNavigationView: () => void;
 }) {
   const [route, setRoute] = useState<Route>();
   const [progress, setProgress] = useState<RouteProgressEvent>();
@@ -250,6 +262,11 @@ function NavigationScreen({
               label="NavigationView"
               onPress={onOpenNavigationView}
               testID="open-navigation-view"
+            />
+            <Chip
+              label="RNNavigationView"
+              onPress={onOpenRNNavigationView}
+              testID="open-rn-navigation-view"
             />
           </>
         ) : (
