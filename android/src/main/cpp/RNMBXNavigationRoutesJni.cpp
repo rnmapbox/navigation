@@ -26,6 +26,12 @@ struct JRoute : jni::JavaClass<JRoute> {
     static const auto legExpectedTravelTimes = cls->getField<jni::JArrayDouble::javaobject>("legExpectedTravelTimes");
     static const auto legStepCounts = cls->getField<jni::JArrayInt::javaobject>("legStepCounts");
     static const auto legSummaries = cls->getField<jni::JArrayClass<jstring>::javaobject>("legSummaries");
+    static const auto stepInstructions = cls->getField<jni::JArrayClass<jstring>::javaobject>("stepInstructions");
+    static const auto stepDistances = cls->getField<jni::JArrayDouble::javaobject>("stepDistances");
+    static const auto stepExpectedTravelTimes = cls->getField<jni::JArrayDouble::javaobject>("stepExpectedTravelTimes");
+    static const auto stepManeuverTypes = cls->getField<jni::JArrayClass<jstring>::javaobject>("stepManeuverTypes");
+    static const auto stepManeuverModifiers = cls->getField<jni::JArrayClass<jstring>::javaobject>("stepManeuverModifiers");
+    static const auto stepNames = cls->getField<jni::JArrayClass<jstring>::javaobject>("stepNames");
 
     RouteData data;
     data.distance = getFieldValue(distance);
@@ -41,8 +47,28 @@ struct JRoute : jni::JavaClass<JRoute> {
     auto times = timeArray->pin();
     auto steps = stepArray->pin();
     auto summaries = getFieldValue(legSummaries);
+    auto instructions = getFieldValue(stepInstructions);
+    auto stepDistanceArray = getFieldValue(stepDistances);
+    auto stepTimeArray = getFieldValue(stepExpectedTravelTimes);
+    auto stepDistanceValues = stepDistanceArray->pin();
+    auto stepTimeValues = stepTimeArray->pin();
+    auto types = getFieldValue(stepManeuverTypes);
+    auto modifiers = getFieldValue(stepManeuverModifiers);
+    auto names = getFieldValue(stepNames);
+    size_t step = 0;
     for (size_t i = 0; i < distances.size(); i++) {
-      data.legs.push_back({distances[i], times[i], steps[i], summaries->getElement(i)->toStdString()});
+      RouteLeg leg{distances[i], times[i], summaries->getElement(i)->toStdString()};
+      for (int j = 0; j < steps[i]; j++, step++) {
+        leg.steps.push_back({
+            instructions->getElement(step)->toStdString(),
+            stepDistanceValues[step],
+            stepTimeValues[step],
+            types->getElement(step)->toStdString(),
+            modifiers->getElement(step)->toStdString(),
+            names->getElement(step)->toStdString(),
+        });
+      }
+      data.legs.push_back(std::move(leg));
     }
     return data;
   }
@@ -87,6 +113,10 @@ std::unique_ptr<PendingCall> fromCallback(jlong callback)
 {
   return std::unique_ptr<PendingCall>(reinterpret_cast<PendingCall *>(callback));
 }
+
+/// Set while JS listens for route changes; `routeChanged` is called on the main thread, the setter on the JS thread.
+std::mutex routeChangeMutex;
+NavigationPlatform::RouteChangeHandler routeChangeHandler;
 
 struct JModule : jni::JavaClass<JModule> {
   static constexpr auto kJavaDescriptor = "Lcom/rnmapbox/rnmbxnav/RNMBXNavigationModule;";
@@ -173,6 +203,12 @@ class AndroidNavigationPlatform : public NavigationPlatform {
     method(module_, unwrap(route));
   }
 
+  void setRouteChangeHandler(RouteChangeHandler handler) override
+  {
+    std::lock_guard lock(routeChangeMutex);
+    routeChangeHandler = std::move(handler);
+  }
+
  private:
   jni::global_ref<JModule> module_;
 };
@@ -209,6 +245,18 @@ struct JNative : jni::JavaClass<JNative> {
     fromCallback(callback)->reject(code->toStdString(), message->toStdString());
   }
 
+  static void routeChanged(jni::alias_ref<jclass>, jni::alias_ref<JRoute> route, jni::alias_ref<jstring> reason)
+  {
+    NavigationPlatform::RouteChangeHandler handler;
+    {
+      std::lock_guard lock(routeChangeMutex);
+      handler = routeChangeHandler;
+    }
+    if (handler) {
+      handler({route->data(), std::make_shared<AndroidNativeRoute>(route)}, reason->toStdString());
+    }
+  }
+
   static jni::local_ref<JRoute> findRoute(jni::alias_ref<jclass>, jdouble id)
   {
     return jni::make_local(unwrap(rnmbxnav::findRoute(id)));
@@ -229,6 +277,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *)
         makeNativeMethod("resolveRoutes", rnmbxnav::JNative::resolveRoutes),
         makeNativeMethod("resolve", rnmbxnav::JNative::resolve),
         makeNativeMethod("reject", rnmbxnav::JNative::reject),
+        makeNativeMethod("routeChanged", rnmbxnav::JNative::routeChanged),
         makeNativeMethod("findRoute", rnmbxnav::JNative::findRoute),
     });
   });

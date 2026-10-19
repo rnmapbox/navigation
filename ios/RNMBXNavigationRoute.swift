@@ -18,6 +18,13 @@ public final class RNMBXNavigationRoute: NSObject, @unchecked Sendable {
   @objc public let legExpectedTravelTimes: [NSNumber]
   @objc public let legStepCounts: [NSNumber]
   @objc public let legSummaries: [String]
+  /// The steps of every leg in order; `legStepCounts` splits them by leg.
+  @objc public let stepInstructions: [String]
+  @objc public let stepDistances: [NSNumber]
+  @objc public let stepExpectedTravelTimes: [NSNumber]
+  @objc public let stepManeuverTypes: [String]
+  @objc public let stepManeuverModifiers: [String]
+  @objc public let stepNames: [String]
 
   init(_ routes: NavigationRoutes) {
     self.routes = routes
@@ -31,5 +38,12 @@ public final class RNMBXNavigationRoute: NSObject, @unchecked Sendable {
     legExpectedTravelTimes = route.legs.map { NSNumber(value: $0.expectedTravelTime) }
     legStepCounts = route.legs.map { NSNumber(value: $0.steps.count) }
     legSummaries = route.legs.map(\.name)
+    let steps = route.legs.flatMap(\.steps)
+    stepInstructions = steps.map(\.instructions)
+    stepDistances = steps.map { NSNumber(value: $0.distance) }
+    stepExpectedTravelTimes = steps.map { NSNumber(value: $0.expectedTravelTime) }
+    stepManeuverTypes = steps.map(\.maneuverType.rawValue)
+    stepManeuverModifiers = steps.map { $0.maneuverDirection?.rawValue ?? "" }
+    stepNames = steps.map { $0.names?.first ?? "" }
   }
 }

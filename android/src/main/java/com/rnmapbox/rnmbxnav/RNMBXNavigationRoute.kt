@@ -37,4 +37,13 @@ class RNMBXNavigationRoute(val routes: List<NavigationRoute>) {
   @JvmField @DoNotStrip val legExpectedTravelTimes: DoubleArray = legs.map { it.duration() ?: 0.0 }.toDoubleArray()
   @JvmField @DoNotStrip val legStepCounts: IntArray = legs.map { it.steps()?.size ?: 0 }.toIntArray()
   @JvmField @DoNotStrip val legSummaries: Array<String> = legs.map { it.summary() ?: "" }.toTypedArray()
+
+  /** The steps of every leg in order; [legStepCounts] splits them by leg. */
+  private val steps = legs.flatMap { it.steps().orEmpty() }
+  @JvmField @DoNotStrip val stepInstructions: Array<String> = steps.map { it.maneuver().instruction() ?: "" }.toTypedArray()
+  @JvmField @DoNotStrip val stepDistances: DoubleArray = steps.map { it.distance() }.toDoubleArray()
+  @JvmField @DoNotStrip val stepExpectedTravelTimes: DoubleArray = steps.map { it.duration() }.toDoubleArray()
+  @JvmField @DoNotStrip val stepManeuverTypes: Array<String> = steps.map { it.maneuver().type() ?: "" }.toTypedArray()
+  @JvmField @DoNotStrip val stepManeuverModifiers: Array<String> = steps.map { it.maneuver().modifier() ?: "" }.toTypedArray()
+  @JvmField @DoNotStrip val stepNames: Array<String> = steps.map { it.name() ?: "" }.toTypedArray()
 }
