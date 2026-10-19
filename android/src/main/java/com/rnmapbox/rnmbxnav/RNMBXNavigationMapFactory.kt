@@ -23,6 +23,9 @@ import com.mapbox.navigation.ui.maps.camera.lifecycle.NavigationBasicGesturesHan
 import com.mapbox.navigation.ui.maps.camera.state.NavigationCameraState
 import com.mapbox.navigation.ui.maps.camera.state.NavigationCameraStateChangedObserver
 import com.mapbox.navigation.ui.maps.location.NavigationLocationProvider
+import com.mapbox.navigation.ui.maps.route.arrow.api.MapboxRouteArrowApi
+import com.mapbox.navigation.ui.maps.route.arrow.api.MapboxRouteArrowView
+import com.mapbox.navigation.ui.maps.route.arrow.model.RouteArrowOptions
 import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineApi
 import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineView
 import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineApiOptions
@@ -79,6 +82,8 @@ class RNMBXNavigationMapBinding(
     MapboxRouteLineApiOptions.Builder().vanishingRouteLineEnabled(true).build()
   )
   private val routeLineView = MapboxRouteLineView(MapboxRouteLineViewOptions.Builder(mapView.context).build())
+  private val arrowApi = MapboxRouteArrowApi()
+  private val arrowView = MapboxRouteArrowView(RouteArrowOptions.Builder(mapView.context).build())
 
   private var cameraWillMoveMapRegistration: Cancelable? = null
 
@@ -111,6 +116,7 @@ class RNMBXNavigationMapBinding(
       routeLineApi.getRouteDrawData { data ->
         mapView.mapboxMap.style?.let { routeLineView.renderRouteDrawData(it, data) }
       }
+      mapView.mapboxMap.style?.let { arrowView.render(it, arrowApi.redraw()) }
     }
     mapView.addOnAttachStateChangeListener(this)
     if (mapView.isAttachedToWindow) onViewAttachedToWindow(mapView)
@@ -167,6 +173,9 @@ class RNMBXNavigationMapBinding(
     routeLineApi.setNavigationRoutes(routes) { data ->
       mapView.mapboxMap.style?.let { routeLineView.renderRouteDrawData(it, data) }
     }
+    if (routes.isEmpty() || preview) {
+      mapView.mapboxMap.style?.let { arrowView.render(it, arrowApi.clearArrows()) }
+    }
     if (routes.isEmpty()) {
       viewportDataSource.clearRouteData()
     } else {
@@ -180,6 +189,7 @@ class RNMBXNavigationMapBinding(
     routeLineApi.updateWithRouteProgress(progress) { result ->
       mapView.mapboxMap.style?.let { routeLineView.renderRouteLineUpdate(it, result) }
     }
+    mapView.mapboxMap.style?.let { arrowView.renderManeuverUpdate(it, arrowApi.addUpcomingManeuverArrow(progress)) }
     viewportDataSource.onRouteProgressChanged(progress)
     viewportDataSource.evaluate()
   }

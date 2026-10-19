@@ -26,6 +26,18 @@ using namespace facebook::react;
     __weak RNMBXNavigationViewComponentView *weakSelf = self;
     _view.onRouteProgress = ^(NSDictionary *event) {
       if (auto emitter = [weakSelf eventEmitter]) {
+        std::vector<RNMBXNavigationViewEventEmitter::OnRouteProgressLanes> lanes;
+        for (NSDictionary *lane in event[@"lanes"]) {
+          std::vector<std::string> indications;
+          for (NSString *indication in lane[@"indications"]) {
+            indications.push_back(indication.UTF8String);
+          }
+          lanes.push_back({
+              .indications = std::move(indications),
+              .valid = [lane[@"valid"] boolValue],
+              .activeDirection = std::string([lane[@"activeDirection"] UTF8String]),
+          });
+        }
         emitter->onRouteProgress({
             .distanceRemaining = [event[@"distanceRemaining"] doubleValue],
             .distanceTraveled = [event[@"distanceTraveled"] doubleValue],
@@ -35,6 +47,11 @@ using namespace facebook::react;
             .maneuverInstruction = std::string([event[@"maneuverInstruction"] UTF8String]),
             .maneuverType = std::string([event[@"maneuverType"] UTF8String]),
             .maneuverModifier = std::string([event[@"maneuverModifier"] UTF8String]),
+            .secondaryInstruction = std::string([event[@"secondaryInstruction"] UTF8String]),
+            .subInstruction = std::string([event[@"subInstruction"] UTF8String]),
+            .lanes = std::move(lanes),
+            .legIndex = [event[@"legIndex"] intValue],
+            .stepIndex = [event[@"stepIndex"] intValue],
         });
       }
     };

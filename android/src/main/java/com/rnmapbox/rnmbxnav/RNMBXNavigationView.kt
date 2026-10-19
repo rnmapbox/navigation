@@ -18,7 +18,6 @@ import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.events.Event
 import com.mapbox.common.location.Location
 import com.mapbox.maps.MapView
-import com.mapbox.maps.Style
 import com.mapbox.maps.plugin.compass.compass
 import com.mapbox.maps.plugin.scalebar.scalebar
 import com.mapbox.navigation.base.formatter.DistanceFormatterOptions
@@ -30,26 +29,16 @@ import com.mapbox.navigation.core.arrival.ArrivalObserver
 import com.mapbox.navigation.core.formatter.MapboxDistanceFormatter
 import com.mapbox.navigation.core.trip.session.LocationMatcherResult
 import com.mapbox.navigation.core.trip.session.LocationObserver
-import com.mapbox.navigation.core.trip.session.VoiceInstructionsObserver
 import com.mapbox.navigation.tripdata.maneuver.api.MapboxManeuverApi
 import com.mapbox.navigation.tripdata.progress.api.MapboxTripProgressApi
 import com.mapbox.navigation.tripdata.progress.model.TripProgressUpdateFormatter
 import com.mapbox.navigation.tripdata.speedlimit.api.MapboxSpeedInfoApi
-import com.mapbox.navigation.ui.base.util.MapboxNavigationConsumer
 import com.mapbox.navigation.ui.components.maneuver.view.MapboxManeuverView
 import com.mapbox.navigation.ui.components.maps.camera.view.MapboxRecenterButton
 import com.mapbox.navigation.ui.components.maps.camera.view.MapboxRouteOverviewButton
 import com.mapbox.navigation.ui.components.speedlimit.view.MapboxSpeedInfoView
 import com.mapbox.navigation.ui.components.tripprogress.view.MapboxTripProgressView
 import com.mapbox.navigation.ui.components.voice.view.MapboxSoundButton
-import com.mapbox.navigation.ui.maps.route.arrow.api.MapboxRouteArrowApi
-import com.mapbox.navigation.ui.maps.route.arrow.api.MapboxRouteArrowView
-import com.mapbox.navigation.ui.maps.route.arrow.model.RouteArrowOptions
-import com.mapbox.navigation.voice.api.MapboxSpeechApi
-import com.mapbox.navigation.voice.api.MapboxVoiceInstructionsPlayer
-import com.mapbox.navigation.voice.model.SpeechAnnouncement
-import com.mapbox.navigation.voice.model.SpeechVolume
-import java.util.Locale
 
 @SuppressLint("ViewConstructor")
 class RNMBXNavigationView(private val context: ThemedReactContext) :
@@ -60,8 +49,8 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
   var mute = false
     set(value) {
       field = value
-      userMuted = null
-      applyMute()
+      RNMBXNavigationSession.voiceMuted = value
+      renderMute()
     }
 
   private val mapView = MapView(context)
@@ -74,12 +63,6 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
   private val maneuverApi = MapboxManeuverApi(MapboxDistanceFormatter(distanceFormatterOptions))
   private val tripProgressApi = MapboxTripProgressApi(TripProgressUpdateFormatter.Builder(context).build())
   private val speedInfoApi = MapboxSpeedInfoApi()
-  private val arrowApi = MapboxRouteArrowApi()
-  private val arrowView = MapboxRouteArrowView(RouteArrowOptions.Builder(context).build())
-
-  private var speechApi: MapboxSpeechApi? = null
-  private var voicePlayer: MapboxVoiceInstructionsPlayer? = null
-  private val onSpeechPlayed = MapboxNavigationConsumer<SpeechAnnouncement> { speechApi?.clean(it) }
 
   private val maneuverView = MapboxManeuverView(context)
   private val speedInfoView = MapboxSpeedInfoView(context).apply { visibility = GONE }
@@ -91,17 +74,7 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
 
   private var navigation: MapboxNavigation? = null
   private var startedRoute: RNMBXNavigationRoute? = null
-  private var userMuted: Boolean? = null
   private var arrivedAtFinalDestination = false
-
-  private val voiceInstructionsObserver = VoiceInstructionsObserver { instructions ->
-    speechApi?.generate(instructions) { result ->
-      result.fold(
-        { error -> voicePlayer?.play(error.fallback, onSpeechPlayed) },
-        { value -> voicePlayer?.play(value.announcement, onSpeechPlayed) }
-      )
-    }
-  }
 
   private val locationObserver = object : LocationObserver {
     override fun onNewRawLocation(rawLocation: Location) = Unit
@@ -138,7 +111,6 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     mapView.setViewTreeLifecycleOwner(this)
     mapView.compass.enabled = false
     mapView.scalebar.enabled = false
-    mapView.mapboxMap.subscribeStyleLoaded { mapView.mapboxMap.style?.let { arrowView.render(it, arrowApi.redraw()) } }
 
     val margin = dp(12)
     val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
@@ -193,8 +165,8 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     overviewButton.updateStyle(com.mapbox.navigation.ui.components.R.style.MapboxStyleRouteOverview)
     recenterButton.updateStyle(com.mapbox.navigation.ui.components.R.style.MapboxStyleRecenter)
     soundButton.setOnClickListener {
-      userMuted = !(userMuted ?: mute)
-      applyMute()
+      RNMBXNavigationSession.voiceMuted = !RNMBXNavigationSession.voiceMuted
+      renderMute()
     }
     overviewButton.setOnClickListener { RNMBXNavigationSession.updateCameraState(RNMBXNavigationCameraState.OVERVIEW) }
     recenterButton.setOnClickListener { RNMBXNavigationSession.updateCameraState(RNMBXNavigationCameraState.FOLLOWING) }
@@ -220,13 +192,10 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     }
     startedRoute = route
     arrivedAtFinalDestination = false
+    RNMBXNavigationSession.voiceMuted = mute
+    renderMute()
     if (this.navigation == null) {
       this.navigation = navigation
-      val language = route.routes.first().directionsRoute.routeOptions()?.language() ?: Locale.getDefault().toLanguageTag()
-      speechApi = MapboxSpeechApi(context, language)
-      voicePlayer = MapboxVoiceInstructionsPlayer(context, language)
-      applyMute()
-      navigation.registerVoiceInstructionsObserver(voiceInstructionsObserver)
       navigation.registerLocationObserver(locationObserver)
       navigation.registerArrivalObserver(arrivalObserver)
       RNMBXNavigationSession.addListener(this)
@@ -245,13 +214,8 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     this.navigation = null
     startedRoute = null
     RNMBXNavigationSession.removeListener(this)
-    navigation.unregisterVoiceInstructionsObserver(voiceInstructionsObserver)
     navigation.unregisterLocationObserver(locationObserver)
     navigation.unregisterArrivalObserver(arrivalObserver)
-    speechApi?.cancel()
-    voicePlayer?.shutdown()
-    speechApi = null
-    voicePlayer = null
     maneuverApi.cancel()
     RNMBXNavigationSession.stopNavigation()
   }
@@ -273,22 +237,15 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     super.onDetachedFromWindow()
   }
 
-  private fun applyMute() {
-    val muted = userMuted ?: mute
-    voicePlayer?.volume(SpeechVolume(if (muted) 0f else 1f))
-    if (muted) soundButton.mute() else soundButton.unmute()
+  private fun renderMute() {
+    if (RNMBXNavigationSession.voiceMuted) soundButton.mute() else soundButton.unmute()
   }
 
   override fun onLocation(location: Location, keyPoints: List<Location>) = Unit
 
-  override fun onRoutes(routes: List<NavigationRoute>, preview: Boolean) {
-    if (routes.isEmpty()) {
-      withStyle { arrowView.render(it, arrowApi.clearArrows()) }
-    }
-  }
+  override fun onRoutes(routes: List<NavigationRoute>, preview: Boolean) = Unit
 
   override fun onRouteProgress(progress: RouteProgress) {
-    withStyle { arrowView.renderManeuverUpdate(it, arrowApi.addUpcomingManeuverArrow(progress)) }
     val maneuvers = maneuverApi.getManeuvers(progress)
     maneuverView.renderManeuvers(maneuvers)
     maneuvers.onValue { maneuverApi.getRoadShields(it) { shields -> maneuverView.renderManeuverWith(shields) } }
@@ -302,10 +259,6 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
   }
 
   override fun onStopped() = Unit
-
-  private fun withStyle(block: (Style) -> Unit) {
-    mapView.mapboxMap.style?.let(block)
-  }
 
   private fun dispatch(name: String, data: WritableMap) {
     UIManagerHelper.getEventDispatcherForReactTag(context, id)
