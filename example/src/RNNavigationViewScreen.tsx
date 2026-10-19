@@ -80,7 +80,7 @@ function EventLog() {
   useEffect(() => {
     const log = (entry: string) => {
       console.log(`[RNNavigationViewScreen] ${entry}`);
-      setEntries((previous) => [entry, ...previous].slice(0, 3));
+      setEntries((previous) => [entry, ...previous].slice(0, 5));
     };
     const subscriptions = [
       Navigation.addArriveListener((event) =>
