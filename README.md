@@ -185,10 +185,17 @@ export function NavigationScreen() {
 | `getRouteStats()`                            | Counts of live, released and garbage-collected routes.                 |
 | `setCameraState(state)` / `getCameraState()` | `'following'`, `'overview'` or `'idle'`.                               |
 | `addCameraStateListener(listener)`           | Camera state changes.                                                  |
-| `addRouteProgressListener(listener)`         | Distance, duration and fraction remaining, and the next maneuver.      |
+| `addRouteProgressListener(listener)`         | Distance, duration and fraction remaining, and the next maneuver's banner. |
+| `addLocationListener(listener)`              | Snapped location, road name and speed limit.                           |
+| `addArriveListener(listener)`                | Waypoint arrivals.                                                     |
+| `addOffRouteListener(listener)`              | Leaving and rejoining the route.                                       |
+| `addRouteChangeListener(listener)`           | New `Route` after a reroute or a switch to an alternative.             |
+| `addVoiceInstructionListener(listener)`      | Voice instruction text and SSML.                                       |
+| `setVoiceMuted(muted)` / `isVoiceMuted()`    | Mutes the SDK's voice instructions.                                    |
 | `NAVIGATION_MAP_VIEW_IMPL`                   | `mapViewImpl` value for navigation maps.                               |
 | `<NavigationViewport padding />`             | Per-map camera padding.                                                |
 | `<NavigationView route \| waypoints />`      | Full-screen navigation UI; see [NavigationView](#navigationview).      |
+| `<RNNavigationView route \| waypoints />`    | The same UI in React Native; see [RNNavigationView](#rnnavigationview). |
 
 ### Routes
 
@@ -199,7 +206,7 @@ interface Route {
   readonly distance: number;           // meters
   readonly expectedTravelTime: number; // seconds
   readonly geometry: LineString;       // GeoJSON, a new object on every read
-  readonly legs: RouteLeg[];           // { distance, expectedTravelTime, stepCount, summary }
+  readonly legs: RouteLeg[];           // { distance, expectedTravelTime, stepCount, summary, steps }
   readonly isReleased: boolean;
   release(): void;
 }
@@ -209,6 +216,7 @@ interface Route {
 - `release()` frees the native route. Calling it again does nothing. Release the routes you don't keep, such as unused alternatives; the garbage collector releases the rest eventually, which can take long because it doesn't see the native memory.
 - After `release()`, reading anything but `isReleased` throws an `Error` with `code: 'route_released'`, and `startActiveGuidance` and `previewRoute` reject or throw it.
 - Guidance and the preview keep their own reference to the native route until `stopNavigation`. Releasing a route they use is safe and doesn't change them. Releasing can't throw, so a route the GC finalizes mid-guidance behaves the same as one released by hand.
+- Each leg's `steps` are `{ instruction, distance, expectedTravelTime, maneuverType, maneuverModifier, name }`.
 - `getRouteStats()` returns `{ live, released, collected }` counts, for leak checks.
 - Routes don't survive a JS reload.
 
@@ -240,6 +248,17 @@ The state switches to `idle` when:
 - `Camera` `followUserLocation` and the navigation camera both drive the map. Don't combine them.
 
 After `stopNavigation`, the route and the puck are removed and the camera eases back to north-up, without tilt or padding.
+
+### Guidance events
+
+- `addRouteProgressListener`: distances and durations remaining, and the banner of the next maneuver: `maneuverInstruction`, `maneuverType`, `maneuverModifier`, `secondaryInstruction`, `subInstruction`, `lanes` (`{ indications, valid, activeDirection }`, left to right), `legIndex` and `stepIndex`.
+- `addLocationListener`: the location snapped to the road or route, with `speed`, `course`, `roadName` and `speedLimit` (`{ speed, unit: 'km/h' | 'mph', sign: 'mutcd' | 'vienna' }`) where known.
+- `addArriveListener`: `{ waypointIndex, isFinalDestination }` when a waypoint is reached.
+- `addOffRouteListener`: `true` when the user leaves the route, `false` once guidance follows a route again.
+- `addRouteChangeListener`: `{ route, reason }` when guidance switches routes on its own, `reason` being `reroute` or `alternative`. `route` is a new `Route`; release it when you're done. The previous route stays valid until released.
+- `addVoiceInstructionListener`: `{ text, ssml, distanceAlongStep }` when an instruction is due, for apps doing their own text to speech.
+
+The SDK speaks instructions during any guidance. `setVoiceMuted(true)` mutes it, including in `<NavigationView>`.
 
 ### NavigationView
 
@@ -277,9 +296,13 @@ It uses the app's single navigation session:
 - `addRouteProgressListener` and `addCameraStateListener` also report its guidance.
 - Show one `NavigationView` at a time. On iOS it's embedded as a child of the nearest view controller.
 
+### RNNavigationView
+
+`<RNNavigationView>` is the same kind of navigation UI written in React Native on top of the API above: a navigation map plus a maneuver banner with lanes, a speed limit sign, the road name, ETA and remaining time and distance, mute, overview/recenter and end buttons, and an arrival message. It takes the same props as `<NavigationView>`, plus `styleURL` and `children`, which it renders inside its `MapView`. Use it as is, or copy it as a starting point for your own UI.
+
 ## Example app
 
-`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, a "Route lifecycle" screen with `Route` checks and live counts, and a "NavigationView" screen with simulated guidance.
+`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, a "Route lifecycle" screen with `Route` checks and live counts, a "NavigationView" screen with simulated guidance, and a "RNNavigationView" screen with the React Native UI, simulated or on the device's location, and a log of arrival, off-route, reroute and voice events.
 
 It reads your Mapbox access token from `example/accesstoken` (gitignored), the same way the `@rnmapbox/maps` example does:
 
@@ -296,7 +319,7 @@ yarn example android
 ## Known limitations
 
 - No explicit offline routing API. Requests use the SDK's default hybrid router, which only falls back to onboard routing with routing tiles already on the device.
-- Navigation maps have no voice guidance, rerouting UI, alternatives or multi-leg UI; `<NavigationView>` has the SDK's.
+- Navigation maps show no alternative routes during guidance.
 - Android `<NavigationView>` has no end-of-route, feedback or alternative-route UI, no day/night styles, no road name label, and doesn't show reroutes as such.
 - No Expo config plugin.
 - `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.

@@ -30,6 +30,10 @@ export {
   type NavigationViewProps,
 } from './NavigationView';
 export {
+  RNNavigationView,
+  type RNNavigationViewProps,
+} from './RNNavigationView';
+export {
   NavigationViewport,
   type NavigationViewportProps,
   type ViewportPadding,
