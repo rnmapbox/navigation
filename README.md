@@ -2,7 +2,7 @@
 
 _A community-supported, open-source React Native library for the [Mapbox Navigation SDK v3](https://docs.mapbox.com/navigation/) for iOS and Android, built on [`@rnmapbox/maps`](https://github.com/rnmapbox/maps)._
 
-It's headless: it requests routes, runs an active-guidance session and reports route progress, and the Navigation SDK draws the route line, the puck and the navigation camera on a regular `@rnmapbox/maps` `MapView`. There are no drop-in navigation UI views yet.
+It requests routes, runs an active-guidance session and reports route progress, and the Navigation SDK draws the route line, the puck and the navigation camera on a regular `@rnmapbox/maps` `MapView`. `<NavigationView>` shows the SDK's full-screen turn-by-turn UI instead.
 
 > Status: early alpha, not published to npm yet. APIs may change.
 
@@ -10,8 +10,8 @@ It's headless: it requests routes, runs an active-guidance session and reports r
 
 - React Native 0.79+ with the New Architecture.
 - [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) >= 10.3.11 (peer dependency).
-- iOS: React Native's minimum deployment target (15.1 for React Native 0.84; the Navigation SDK itself needs iOS 14). Mapbox Navigation SDK for iOS 3.23.1 (`MapboxNavigationCore`), added as a Swift package.
-- Android: `minSdkVersion` 24, `compileSdkVersion` 36. Mapbox Navigation SDK for Android 3.23.1 (`com.mapbox.navigationcore:navigation` and `ui-maps`).
+- iOS: React Native's minimum deployment target (15.1 for React Native 0.84; the Navigation SDK itself needs iOS 14). Mapbox Navigation SDK for iOS 3.23.1 (`MapboxNavigationCore` and `MapboxNavigationUIKit`), added as a Swift package.
+- Android: `minSdkVersion` 24, `compileSdkVersion` 36. Mapbox Navigation SDK for Android 3.23.1 (`com.mapbox.navigationcore:navigation`, `ui-maps` and `ui-components`).
 - A [Mapbox account](https://account.mapbox.com/auth/signup/) and a public access token (`pk.…`). Neither platform needs a secret downloads token: the Android release artifacts and the iOS Swift package binaries download without one.
 
 Navigation is billed per trip or MAU to the access token you pass, on top of Maps usage. See [Navigation SDK pricing](https://www.mapbox.com/pricing#navigation).
@@ -48,14 +48,15 @@ end
 
 `pod install` adds `MapboxCommon`, `MapboxCoreMaps`, `MapboxNavigationNative` and `Turf` to the frameworks CocoaPods embeds; Xcode doesn't embed the dynamic frameworks of a package that's only linked through a pod. It uses the helper in `@rnmapbox/maps`' `ios/rnmapbox_spm.rb`.
 
-Add `NSLocationWhenInUseUsageDescription` to your `Info.plist`.
+Add `NSLocationWhenInUseUsageDescription` to your `Info.plist`. For `<NavigationView>`, also add `audio` to `UIBackgroundModes`: the SDK's voice controller asserts on it in debug builds.
 
 Podfile options (set them before `use_native_modules!`):
 
 ```ruby
 # Navigation SDK version, defaults to package.json `mapboxNavigation.ios`. Nav 3.N pins Maps 11.N.
 $RNMapboxNavigationVersion = '3.23.1'
-# Don't add the Swift package; add mapbox-navigation-ios (product MapboxNavigationCore) yourself.
+# Don't add the Swift package; add mapbox-navigation-ios (products MapboxNavigationCore and
+# MapboxNavigationUIKit) yourself.
 $RNMapboxNavigationSwiftPackageManager = 'manual'
 ```
 
@@ -187,6 +188,7 @@ export function NavigationScreen() {
 | `addRouteProgressListener(listener)`         | Distance, duration and fraction remaining, and the next maneuver.      |
 | `NAVIGATION_MAP_VIEW_IMPL`                   | `mapViewImpl` value for navigation maps.                               |
 | `<NavigationViewport padding />`             | Per-map camera padding.                                                |
+| `<NavigationView route \| waypoints />`      | Full-screen navigation UI; see [NavigationView](#navigationview).      |
 
 ### Routes
 
@@ -239,9 +241,45 @@ The state switches to `idle` when:
 
 After `stopNavigation`, the route and the puck are removed and the camera eases back to north-up, without tilt or padding.
 
+### NavigationView
+
+`<NavigationView>` is a full-screen navigation UI: `NavigationViewController` from `MapboxNavigationUIKit` on iOS, and an equivalent built from the Navigation SDK UI components on Android (maneuver banner with lanes and shields, speed limit, trip progress, mute, overview, recenter and end buttons).
+
+```tsx
+import { NavigationView } from '@rnmapbox/navigation';
+
+<NavigationView
+  style={{ flex: 1 }}
+  waypoints={[[-122.39726, 37.79205], { coordinate: [-122.39351, 37.79554], name: 'Ferry Building' }]}
+  simulate
+  mute={muted}
+  onRouteProgress={(event) => console.log(event.distanceRemaining)}
+  onArrive={({ waypointIndex, isFinalDestination }) => {}}
+  onCancel={() => close()}
+  onError={({ code, message }) => {}}
+/>
+```
+
+| Prop              | Description                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| `route`           | A `Route` from `requestRoutes`. Keep it unreleased while it's passed to the view.   |
+| `waypoints`       | Used without `route`: the view requests a route through them and releases it on unmount. |
+| `simulate`        | Drives the route with simulated locations. Read when guidance starts.               |
+| `mute`            | Mutes voice instructions. The view's own mute button also toggles them.             |
+| `onRouteProgress` | Same event as `addRouteProgressListener`.                                           |
+| `onArrive`        | `{ waypointIndex, isFinalDestination }`; `waypointIndex` counts the origin as 0.    |
+| `onCancel`        | The user ended the trip. Guidance has stopped; unmount the view.                    |
+| `onError`         | `{ code, message }`, e.g. `route_request_failed`, `route_released`, `start_failed`. |
+
+It uses the app's single navigation session:
+- Mounting it, or giving it a new route, starts guidance along that route and replaces any other active guidance. Navigation maps show its route and puck too.
+- Unmounting it, or the user ending the trip, stops guidance.
+- `addRouteProgressListener` and `addCameraStateListener` also report its guidance.
+- Show one `NavigationView` at a time. On iOS it's embedded as a child of the nearest view controller.
+
 ## Example app
 
-`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, and a "Route lifecycle" screen with `Route` checks and live counts.
+`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, a "Route lifecycle" screen with `Route` checks and live counts, and a "NavigationView" screen with simulated guidance.
 
 It reads your Mapbox access token from `example/accesstoken` (gitignored), the same way the `@rnmapbox/maps` example does:
 
@@ -257,9 +295,9 @@ yarn example android
 
 ## Known limitations
 
-- No drop-in navigation UI views (maneuver banner, trip progress, buttons) yet; build them from the route progress events.
 - No explicit offline routing API. Requests use the SDK's default hybrid router, which only falls back to onboard routing with routing tiles already on the device.
-- No voice guidance, rerouting UI, alternatives or multi-leg UI.
+- Navigation maps have no voice guidance, rerouting UI, alternatives or multi-leg UI; `<NavigationView>` has the SDK's.
+- Android `<NavigationView>` has no end-of-route, feedback or alternative-route UI, no day/night styles, no road name label, and doesn't show reroutes as such.
 - No Expo config plugin.
 - `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.
 - One navigation session for all navigation maps. Per-map routes or cameras aren't supported.
