@@ -1,0 +1,84 @@
+#import "RNMBXNavigationModule.h"
+
+#import <ReactCommon/RCTTurboModuleWithJSIBindings.h>
+
+#import "RNMBXNavigationRoutesPlatform.h"
+#import "rnmapbox_navigation-Swift.h"
+
+@interface RNMBXNavigationModule () <RCTTurboModuleWithJSIBindings>
+@end
+
+@implementation RNMBXNavigationModule {
+  RNMBXNavigation *_navigation;
+}
+
++ (void)load
+{
+  // Must be registered before any <MapView mapViewImpl="rnmbxnav"> is created, which can be
+  // earlier than the first JS call into this module.
+  [RNMBXNavigationMapFactory register];
+}
+
+- (instancetype)init
+{
+  if (self = [super init]) {
+    _navigation = [RNMBXNavigation new];
+    __weak RNMBXNavigationModule *weakSelf = self;
+    _navigation.onRouteProgress = ^(NSDictionary *event) {
+      [weakSelf emitOnRouteProgress:event];
+    };
+    _navigation.onCameraStateChange = ^(NSDictionary *event) {
+      [weakSelf emitOnCameraStateChange:event];
+    };
+  }
+  return self;
+}
+
++ (NSString *)moduleName
+{
+  return @"RNMBXNavigationModule";
+}
+
+- (void)invalidate
+{
+  [_navigation invalidate];
+}
+
+- (void)setAccessToken:(NSString *)accessToken
+{
+  [_navigation setAccessToken:accessToken];
+}
+
+- (NSString *)getSdkVersion
+{
+  return [RNMBXNavigation sdkVersion];
+}
+
+- (void)stopNavigation
+{
+  [_navigation stopNavigation];
+}
+
+- (void)setCameraState:(NSString *)state
+{
+  [_navigation setCameraState:state];
+}
+
+- (NSString *)getCameraState
+{
+  return [_navigation cameraState];
+}
+
+- (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime
+                          callInvoker:(const std::shared_ptr<facebook::react::CallInvoker> &)callInvoker
+{
+  rnmbxnav::install(runtime, callInvoker, rnmbxnav::makeNavigationPlatform(_navigation));
+}
+
+- (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
+    (const facebook::react::ObjCTurboModule::InitParams &)params
+{
+  return std::make_shared<facebook::react::NativeRNMBXNavigationModuleSpecJSI>(params);
+}
+
+@end

@@ -1,0 +1,109 @@
+// Customization (root project ext, e.g. in android/build.gradle `ext { ... }`):
+//   RNMapboxNavigationVersion - Mapbox Navigation SDK version, e.g. "3.23.1".
+//     Nav 3.N pins Mapbox Maps 11.N exactly; keep it in step with RNMapboxMapsVersion.
+//   RNMapboxNavigationMapsVersion - the Maps version the Navigation SDK is built against, derived from
+//     RNMapboxNavigationVersion by default. The build fails if anything resolves another Maps version.
+//   targetSdkVersion - 35+ selects the -ndk27 (16 KB page size) artifacts, the same rule @rnmapbox/maps
+//     uses for com.mapbox.maps:android-ndk27, so both resolve the same Maps and Common artifacts.
+
+buildscript {
+  ext.RNMBXNav = [
+    kotlinVersion: "2.0.21",
+    minSdkVersion: 24,
+    compileSdkVersion: 36
+  ]
+
+  ext.getExtOrDefault = { prop ->
+    if (rootProject.ext.has(prop)) {
+      return rootProject.ext.get(prop)
+    }
+
+    return RNMBXNav[prop]
+  }
+
+  repositories {
+    google()
+    mavenCentral()
+  }
+
+  dependencies {
+    classpath "com.android.tools.build:gradle:8.7.2"
+    // noinspection DifferentKotlinGradleVersion
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${getExtOrDefault('kotlinVersion')}"
+  }
+}
+
+def getDefaultMapboxNavigationVersion() {
+  def packageJson = new groovy.json.JsonSlurper().parseText(
+    new File(projectDir.getPath(), "../package.json").text
+  )
+  return packageJson.mapboxNavigation.android
+}
+
+def mapboxNavigationVersion = rootProject.ext.has("RNMapboxNavigationVersion")
+  ? rootProject.ext.get("RNMapboxNavigationVersion")
+  : getDefaultMapboxNavigationVersion()
+
+def mapboxNavigationMapsVersion = rootProject.ext.has("RNMapboxNavigationMapsVersion")
+  ? rootProject.ext.get("RNMapboxNavigationMapsVersion")
+  : mapboxNavigationVersion.replaceFirst(/^3\./, "11.")
+
+apply plugin: "com.android.library"
+
+if (project.extensions.findByName("kotlin") == null) {
+  apply plugin: "kotlin-android"
+}
+
+apply plugin: "com.facebook.react"
+
+android {
+  namespace "com.rnmapbox.rnmbxnav"
+
+  compileSdkVersion getExtOrDefault("compileSdkVersion")
+
+  defaultConfig {
+    minSdkVersion getExtOrDefault("minSdkVersion")
+    externalNativeBuild {
+      cmake {
+        arguments "-DANDROID_STL=c++_shared"
+      }
+    }
+  }
+
+  buildFeatures {
+    prefab true
+  }
+
+  externalNativeBuild {
+    cmake {
+      path "CMakeLists.txt"
+    }
+  }
+
+  packagingOptions {
+    // Provided by react-android.
+    excludes += ["**/libc++_shared.so", "**/libfbjni.so", "**/libjsi.so", "**/libreactnative.so"]
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}
+
+def ndkSuffix = (rootProject.ext.has("targetSdkVersion") ? rootProject.ext.get("targetSdkVersion") : 28) >= 35 ? "-ndk27" : ""
+
+dependencies {
+  implementation "com.facebook.react:react-android"
+  implementation "com.mapbox.navigationcore:navigation${ndkSuffix}:${mapboxNavigationVersion}"
+  implementation "com.mapbox.navigationcore:ui-maps${ndkSuffix}:${mapboxNavigationVersion}"
+  // RNMBXNavigationMapFactory registers with @rnmapbox/maps' RNMBXMapViewFactory.
+  implementation project(":rnmapbox_maps")
+
+  constraints {
+    implementation("com.mapbox.maps:android${ndkSuffix}") {
+      version { strictly mapboxNavigationMapsVersion }
+      because "Mapbox Navigation ${mapboxNavigationVersion} is built against Maps ${mapboxNavigationMapsVersion}"
+    }
+  }
+}

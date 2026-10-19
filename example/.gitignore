@@ -1,0 +1,3 @@
+# Mapbox token, see scripts/set_access_token.js
+accesstoken
+env.json

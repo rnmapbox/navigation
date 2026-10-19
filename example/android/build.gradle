@@ -1,0 +1,44 @@
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.1.20"
+        // Nav SDK 3.23.1 pins Maps 11.23.1; @rnmapbox/maps must use the same version.
+        RNMapboxMapsVersion = "11.23.1"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+
+        maven {
+            url 'https://api.mapbox.com/downloads/v2/releases/maven'
+            // Release artifacts no longer need a downloads token; kept optional as in @rnmapbox/maps.
+            if (project.properties['MAPBOX_DOWNLOADS_TOKEN']) {
+                authentication {
+                    basic(BasicAuthentication)
+                }
+                credentials {
+                    username = 'mapbox'
+                    password = project.properties['MAPBOX_DOWNLOADS_TOKEN']
+                }
+            }
+        }
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
