@@ -208,6 +208,11 @@ struct JNative : jni::JavaClass<JNative> {
   {
     fromCallback(callback)->reject(code->toStdString(), message->toStdString());
   }
+
+  static jni::local_ref<JRoute> findRoute(jni::alias_ref<jclass>, jdouble id)
+  {
+    return jni::make_local(unwrap(rnmbxnav::findRoute(id)));
+  }
 };
 
 } // namespace
@@ -224,6 +229,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *)
         makeNativeMethod("resolveRoutes", rnmbxnav::JNative::resolveRoutes),
         makeNativeMethod("resolve", rnmbxnav::JNative::resolve),
         makeNativeMethod("reject", rnmbxnav::JNative::reject),
+        makeNativeMethod("findRoute", rnmbxnav::JNative::findRoute),
     });
   });
 }

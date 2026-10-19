@@ -18,7 +18,7 @@ class RNMBXNavigationPackage : BaseReactPackage() {
     if (name == RNMBXNavigationModule.NAME) RNMBXNavigationModule(reactContext) else null
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
-    listOf(RNMBXNavigationViewportManager())
+    listOf(RNMBXNavigationViewportManager(), RNMBXNavigationViewManager())
 
   override fun getReactModuleInfoProvider() = ReactModuleInfoProvider {
     mapOf(
