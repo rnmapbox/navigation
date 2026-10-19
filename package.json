@@ -69,6 +69,7 @@
     "@rnmapbox/maps": "10.3.11",
     "@types/jest": "^29.5.14",
     "@types/react": "^19.2.0",
+    "@types/react-test-renderer": "^19.1.0",
     "del-cli": "^7.0.0",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
@@ -79,6 +80,7 @@
     "react": "19.2.3",
     "react-native": "0.84.1",
     "react-native-builder-bob": "^0.43.2",
+    "react-test-renderer": "19.2.3",
     "turbo": "^2.10.8",
     "typescript": "^6.0.3"
   },
@@ -118,6 +120,7 @@
     },
     "ios": {
       "componentProvider": {
+        "RNMBXNavigationView": "RNMBXNavigationViewComponentView",
         "RNMBXNavigationViewport": "RNMBXNavigationViewportComponentView"
       }
     }

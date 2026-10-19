@@ -105,11 +105,20 @@ class RouteHostObject : public jsi::HostObject, public std::enable_shared_from_t
   std::shared_ptr<NativeRoute> native() const;
   void release();
 
+  double id() const
+  {
+    return id_;
+  }
+
  private:
   const RouteData data_;
   mutable std::mutex mutex_;
   std::shared_ptr<NativeRoute> native_;
+  double id_ = 0;
 };
+
+/// Thread-safe; `nullptr` once the route is released.
+std::shared_ptr<NativeRoute> findRoute(double id);
 
 /// Installs `global.__RNMBXNavigationRoutes`, wrapped by `src/Route.ts`.
 void install(

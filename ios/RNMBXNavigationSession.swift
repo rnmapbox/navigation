@@ -17,8 +17,10 @@ final class RNMBXNavigationSession {
   /// Fires when navigation stops, so adopted maps can reset their camera.
   let stopped = PassthroughSubject<Void, Never>()
 
-  private var provider: MapboxNavigationProvider?
+  private(set) var provider: MapboxNavigationProvider?
   private var subscriptions = Set<AnyCancellable>()
+  /// Kept until navigation stops, whether or not JS releases its `Route`.
+  private var guidanceRoute: RNMBXNavigationRoute?
 
   var accessToken: String?
 
@@ -49,15 +51,25 @@ final class RNMBXNavigationSession {
     return provider.mapboxNavigation
   }
 
-  func setLocationSource(_ source: LocationSource) {
-    guard let provider, provider.coreConfig.locationSource != source else { return }
+  /// Applying the config replaces the location client and the speech synthesizer on a later main actor turn.
+  func setLocationSource(_ source: LocationSource, force: Bool = false) {
+    guard let provider, force || provider.coreConfig.locationSource != source else { return }
     var config = provider.coreConfig
     config.locationSource = source
     provider.apply(coreConfig: config)
   }
 
+  func prepareActiveGuidance(_ route: RNMBXNavigationRoute, simulate: Bool) throws -> MapboxNavigation {
+    let navigation = try mapboxNavigation()
+    // A reused simulation continues from where it stopped if the new route has the same length.
+    setLocationSource(simulate ? .simulation(initialLocation: nil) : .live, force: simulate)
+    guidanceRoute = route
+    return navigation
+  }
+
   func stop() {
     provider?.mapboxNavigation.tripSession().setToIdle()
+    guidanceRoute = nil
     previewRoutes = nil
     cameraState = .idle
     location = nil
