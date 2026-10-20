@@ -20,7 +20,7 @@ public final class RNMBXNavigationMapFactory: NSObject {
     })
   }
 
-  @MainActor private static func makeMapView(in parent: UIView) -> MapView {
+  @MainActor private static func makeMapView(in parent: RNMBXMapView) -> MapView {
     let session = RNMBXNavigationSession.shared
     let navigationMapView = RNMBXNavigationMapView(
       location: session.$location.compactMap { $0 }.eraseToAnyPublisher(),
@@ -31,7 +31,7 @@ public final class RNMBXNavigationMapFactory: NSObject {
     parent.addSubview(navigationMapView)
 
     let binding = RNMBXNavigationMapBinding(navigationMapView, session: session)
-    (parent as? RNMBXMapView)?.addCameraDelegate(binding)
+    parent.addCameraDelegate(binding)
     objc_setAssociatedObject(navigationMapView, &bindingKey, binding, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     return navigationMapView.mapView
   }
@@ -111,31 +111,17 @@ private final class RNMBXNavigationMapBinding: NSObject {
       }
       .store(in: &subscriptions)
 
-    // The SDK's own gesture handling goes through `mapView.gestures.delegate`, which rnmapbox replaces, and the
-    // core `NavigationCamera` keeps following through gestures anyway, so hand the camera to the user here.
-    let gestures: GestureManager = navigationMapView.mapView.gestures
-    for recognizer in [
-      gestures.panGestureRecognizer,
-      gestures.pinchGestureRecognizer,
-      gestures.rotateGestureRecognizer,
-      gestures.pitchGestureRecognizer,
-      gestures.doubleTapToZoomInGestureRecognizer,
-      gestures.doubleTouchToZoomOutGestureRecognizer,
-      gestures.quickZoomGestureRecognizer,
-    ] {
-      recognizer.addTarget(self, action: #selector(userGesture(_:)))
-    }
-  }
-
-  @objc private func userGesture(_ recognizer: UIGestureRecognizer) {
-    let started = recognizer is UITapGestureRecognizer ? recognizer.state == .ended : recognizer.state == .began
-    if started {
-      session.cameraState = .idle
-    }
+    navigationMapView.delegate = self
   }
 }
 
-extension RNMBXNavigationMapBinding: @preconcurrency RNMBXCameraDelegate {
+extension RNMBXNavigationMapBinding: NavigationMapViewDelegate {
+  func navigationMapViewUserDidStartInteraction(_ navigationMapView: NavigationMapView) {
+    session.cameraState = .idle
+  }
+}
+
+extension RNMBXNavigationMapBinding: RNMBXCameraDelegate {
   func cameraWillMoveMap(_ map: RNMBXMapView) {
     session.cameraState = .idle
   }

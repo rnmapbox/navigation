@@ -2500,9 +2500,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rnmapbox/maps@npm:10.3.10":
-  version: 10.3.10
-  resolution: "@rnmapbox/maps@npm:10.3.10"
+"@rnmapbox/maps@npm:10.3.11":
+  version: 10.3.11
+  resolution: "@rnmapbox/maps@npm:10.3.11"
   dependencies:
     "@turf/along": "npm:6.5.0"
     "@turf/distance": "npm:6.5.0"
@@ -2524,7 +2524,7 @@ __metadata:
       optional: true
     react-dom:
       optional: true
-  checksum: 10c0/4fc9be6df29162ab611168c0822bbc162e2fc133c815245b5488226b81c20d8cb3c1c6351d1797edc00cd98f9925f4c71d085141d102e26dcba78778859cddd7
+  checksum: 10c0/19200c19545dd94b574067c74fe11d2f72047dcc10872a80aa647ff45de34fd9fddff44ea033aacf1fc7cca29edb1c56fbccddaf9c268b42cd575872adbba762
   languageName: node
   linkType: hard
 
@@ -2541,7 +2541,7 @@ __metadata:
     "@react-native/babel-preset": "npm:0.84.1"
     "@react-native/metro-config": "npm:0.84.1"
     "@react-native/typescript-config": "npm:0.84.1"
-    "@rnmapbox/maps": "npm:10.3.10"
+    "@rnmapbox/maps": "npm:10.3.11"
     "@types/react": "npm:^19.2.0"
     react: "npm:19.2.3"
     react-native: "npm:0.84.1"
