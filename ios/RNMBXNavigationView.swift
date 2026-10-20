@@ -55,19 +55,22 @@ public final class RNMBXNavigationView: UIView {
   private func scheduleGuidance() {
     guard !guidanceScheduled else { return }
     guidanceScheduled = true
-    DispatchQueue.main.async { [weak self] in
+    Task { @MainActor [weak self] in
       guard let self else { return }
       guidanceScheduled = false
-      startGuidance()
+      await startGuidance()
     }
   }
 
-  private func startGuidance() {
+  private func startGuidance() async {
     guard let route, window != nil, !invalidated else { return }
     let session = RNMBXNavigationSession.shared
     let navigation: MapboxNavigation
     do {
-      navigation = try session.prepareActiveGuidance(route, simulate: simulate)
+      guard let prepared = try await session.prepareActiveGuidance(route, simulate: simulate),
+            route === self.route, window != nil, !invalidated
+      else { return }
+      navigation = prepared
     } catch {
       onError?(["code": "start_failed", "message": error.localizedDescription])
       return

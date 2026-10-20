@@ -59,12 +59,20 @@ final class RNMBXNavigationSession {
     provider.apply(coreConfig: config)
   }
 
-  func prepareActiveGuidance(_ route: RNMBXNavigationRoute, simulate: Bool) throws -> MapboxNavigation {
+  /// Nil if guidance stopped or restarted meanwhile.
+  func prepareActiveGuidance(_ route: RNMBXNavigationRoute, simulate: Bool) async throws -> MapboxNavigation? {
     let navigation = try mapboxNavigation()
-    // A reused simulation continues from where it stopped if the new route has the same length.
-    setLocationSource(simulate ? .simulation(initialLocation: nil) : .live, force: simulate)
+    // Without the origin, the new simulation starts from progress matched against the previous simulation's location.
+    let origin = route.routes.mainRoute.route.shape?.coordinates.first.map {
+      CLLocation(latitude: $0.latitude, longitude: $0.longitude)
+    }
+    setLocationSource(simulate ? .simulation(initialLocation: origin) : .live, force: simulate)
     guidanceRoute = route
-    return navigation
+    // `apply(coreConfig:)` swaps the location client two main actor turns later; guidance started before that is
+    // matched against the previous client's location.
+    await Task.yield()
+    await Task.yield()
+    return guidanceRoute === route ? navigation : nil
   }
 
   func stop() {

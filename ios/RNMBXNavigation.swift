@@ -123,7 +123,10 @@ public final class RNMBXNavigation: NSObject {
     Task { @MainActor in
       do {
         let session = RNMBXNavigationSession.shared
-        let navigation = try session.prepareActiveGuidance(route, simulate: simulate)
+        guard let navigation = try await session.prepareActiveGuidance(route, simulate: simulate) else {
+          resolve()
+          return
+        }
         navigation.tripSession().startActiveGuidance(with: route.routes, startLegIndex: 0)
         session.cameraState = .following
         resolve()
