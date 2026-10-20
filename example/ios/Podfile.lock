@@ -1785,11 +1785,11 @@ PODS:
     - React-utils (= 0.84.1)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.84.1)
-  - rnmapbox-maps (10.3.10):
+  - rnmapbox-maps (10.3.11):
     - React
     - React-Core
-    - rnmapbox-maps/DynamicLibrary (= 10.3.10)
-  - rnmapbox-maps/DynamicLibrary (10.3.10):
+    - rnmapbox-maps/DynamicLibrary (= 10.3.11)
+  - rnmapbox-maps/DynamicLibrary (10.3.11):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2137,7 +2137,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 797de5178718324c6eba3327b07f9a423fbd5787
   ReactCommon: 07572bf9e687c8a52fbe4a3641e9e3a1a477c78e
   ReactNativeDependencies: f87e546ce8bce7e377018d6516f8105e90c0b491
-  rnmapbox-maps: f8e61127245890ebf5b3cad9653830dc45499c11
+  rnmapbox-maps: 5f06d0ba48bafae784ea06d5b9f5b79217330c73
   rnmapbox-navigation: a2931d7566bf4fe912586bbeec86ecb73da7ee6a
   Yoga: c0b3f2c7e8d3e327e450223a2414ca3fa296b9a2
 

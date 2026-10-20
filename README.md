@@ -196,7 +196,6 @@ After `stopNavigation`, the route and the puck are removed and the camera eases 
 ## Limitations
 
 - `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.
-- iOS: `@rnmapbox/maps` takes over the map's `gestures.delegate`, so `NavigationMapViewDelegate` interaction callbacks don't fire. Gesture handling for the camera state doesn't depend on them.
 - One navigation session for all navigation maps. Per-map routes or cameras aren't supported.
 - Route progress events already on their way to JS still arrive after `stopNavigation`. Ignore them if you need to.
 - Not tested yet: live (non-simulated) guidance on a device, release builds, several navigation maps at once, and unmounting a map during guidance.

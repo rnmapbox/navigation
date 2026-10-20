@@ -27,6 +27,7 @@ import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineApi
 import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineView
 import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineApiOptions
 import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineViewOptions
+import com.rnmapbox.rnmbx.components.mapview.Cancelable
 import com.rnmapbox.rnmbx.components.mapview.OnCameraWillMoveMapListener
 import com.rnmapbox.rnmbx.components.mapview.RNMBXMapView
 import com.rnmapbox.rnmbx.components.mapview.RNMBXMapViewFactory
@@ -44,15 +45,14 @@ object RNMBXNavigationMapFactory {
     RNMBXMapViewFactory.register(MAP_VIEW_IMPL) { _, parent -> createMapView(parent) }
   }
 
-  private fun createMapView(parent: ViewGroup): MapView {
+  private fun createMapView(parent: RNMBXMapView): MapView {
     val mapView = MapView(parent.context)
     mapView.layoutParams = FrameLayout.LayoutParams(
       ViewGroup.LayoutParams.MATCH_PARENT,
       ViewGroup.LayoutParams.MATCH_PARENT
     )
     parent.addView(mapView)
-    val binding = RNMBXNavigationMapBinding(mapView)
-    (parent as? RNMBXMapView)?.addOnCameraWillMoveMapListener(binding)
+    val binding = RNMBXNavigationMapBinding(mapView, parent)
     bindings[mapView] = binding
     return mapView
   }
@@ -64,7 +64,10 @@ object RNMBXNavigationMapFactory {
 }
 
 /** Mirrors [RNMBXNavigationSession] onto one MapView while it's attached to a window. */
-class RNMBXNavigationMapBinding(private val mapView: MapView) :
+class RNMBXNavigationMapBinding(
+  private val mapView: MapView,
+  private val parent: RNMBXMapView? = null
+) :
   RNMBXNavigationSession.Listener, View.OnAttachStateChangeListener, OnCameraWillMoveMapListener {
 
   private val locationProvider = NavigationLocationProvider()
@@ -74,6 +77,8 @@ class RNMBXNavigationMapBinding(private val mapView: MapView) :
     MapboxRouteLineApiOptions.Builder().vanishingRouteLineEnabled(true).build()
   )
   private val routeLineView = MapboxRouteLineView(MapboxRouteLineViewOptions.Builder(mapView.context).build())
+
+  private var cameraWillMoveMapRegistration: Cancelable? = null
 
   private var navigationCameraState = NavigationCameraState.IDLE
   private val onNavigationCameraState = NavigationCameraStateChangedObserver { state ->
@@ -135,11 +140,14 @@ class RNMBXNavigationMapBinding(private val mapView: MapView) :
   override fun onViewAttachedToWindow(view: View) {
     mapView.location.addOnIndicatorPositionChangedListener(onPuckPosition)
     navigationCamera.registerNavigationCameraStateChangeObserver(onNavigationCameraState)
+    cameraWillMoveMapRegistration = parent?.addOnCameraWillMoveMapListener(this)
     RNMBXNavigationSession.addListener(this)
   }
 
   override fun onViewDetachedFromWindow(view: View) {
     RNMBXNavigationSession.removeListener(this)
+    cameraWillMoveMapRegistration?.cancel()
+    cameraWillMoveMapRegistration = null
     navigationCamera.unregisterNavigationCameraStateChangeObserver(onNavigationCameraState)
     mapView.location.removeOnIndicatorPositionChangedListener(onPuckPosition)
     routeLineApi.cancel()
