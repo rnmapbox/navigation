@@ -23,6 +23,7 @@
     "@types/react": "~19.3.0",
     "babel-preset-expo": "~58.0.18",
     "react-native-builder-bob": "^0.43.2",
+    "react-native-monorepo-config": "^0.4.0",
     "typescript": "~6.0.3"
   }
 }

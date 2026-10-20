@@ -1,10 +1,11 @@
 const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
-const { getConfig } = require('react-native-builder-bob/metro-config');
+const { withMetroConfig } = require('react-native-monorepo-config');
 
 const root = path.resolve(__dirname, '..');
 
-module.exports = getConfig(getDefaultConfig(__dirname), {
+module.exports = withMetroConfig(getDefaultConfig(__dirname), {
   root,
-  project: __dirname,
+  dirname: __dirname,
+  conditions: ['rnmapbox-navigation-source'],
 });
