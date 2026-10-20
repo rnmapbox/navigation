@@ -92,6 +92,7 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
   private var navigation: MapboxNavigation? = null
   private var startedRoute: RNMBXNavigationRoute? = null
   private var userMuted: Boolean? = null
+  private var arrivedAtFinalDestination = false
 
   private val voiceInstructionsObserver = VoiceInstructionsObserver { instructions ->
     speechApi?.generate(instructions) { result ->
@@ -123,6 +124,8 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     override fun onNextRouteLegStart(routeLegProgress: RouteLegProgress) = Unit
 
     override fun onFinalDestinationArrival(routeProgress: RouteProgress) {
+      if (arrivedAtFinalDestination) return
+      arrivedAtFinalDestination = true
       dispatch("topArrive", Arguments.createMap().apply {
         putInt("waypointIndex", routeProgress.navigationRoute.directionsRoute.legs()?.size ?: 1)
         putBoolean("isFinalDestination", true)
@@ -216,6 +219,7 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
       return
     }
     startedRoute = route
+    arrivedAtFinalDestination = false
     if (this.navigation == null) {
       this.navigation = navigation
       val language = route.routes.first().directionsRoute.routeOptions()?.language() ?: Locale.getDefault().toLanguageTag()

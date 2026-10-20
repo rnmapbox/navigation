@@ -15,6 +15,7 @@ export default function NavigationViewScreen({
   const [status, setStatus] = useState('requesting route…');
   const [progressCount, setProgressCount] = useState(0);
   const [arrival, setArrival] = useState('');
+  const [arrivalCount, setArrivalCount] = useState(0);
 
   return (
     <View style={styles.screen}>
@@ -31,13 +32,14 @@ export default function NavigationViewScreen({
           setProgressCount((count) => count + 1);
           setStatus(`${Math.round(event.distanceRemaining)} m left`);
         }}
-        onArrive={(event) =>
+        onArrive={(event) => {
+          setArrivalCount((count) => count + 1);
           setArrival(
             `arrived at waypoint ${event.waypointIndex}${
               event.isFinalDestination ? ' (final)' : ''
             }`
-          )
-        }
+          );
+        }}
         onCancel={() => {
           setStatus('canceled');
           onClose();
@@ -50,7 +52,7 @@ export default function NavigationViewScreen({
         </Text>
         {arrival ? (
           <Text style={styles.status} testID="navigation-view-arrival">
-            {arrival}
+            {arrival} · {arrivalCount} arrival events
           </Text>
         ) : null}
         <View style={styles.buttons}>
