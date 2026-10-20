@@ -43,6 +43,7 @@ object RNMBXNavigationSession {
 
   /** Kept until navigation stops, whether or not JS releases its `Route`. */
   private var guidanceRoute: RNMBXNavigationRoute? = null
+  private var guidanceStart: Any? = null
   private var simulating = false
 
   private val navigationRouteProgressObserver = RouteProgressObserver { progress ->
@@ -122,27 +123,36 @@ object RNMBXNavigationSession {
     navigation.registerLocationObserver(locationObserver)
     navigation.registerRoutesObserver(routesObserver)
     guidanceRoute = route
-    navigation.setNavigationRoutes(route.routes)
+    val start = Any()
+    guidanceStart = start
     if (simulate) {
       // No foreground service: it needs runtime location permission, which simulation doesn't.
       navigation.startReplayTripSession(withForegroundService = false)
-      navigation.mapboxReplayer.run {
-        stop()
-        clearEvents()
-        pushEvents(ReplayRouteMapper().mapDirectionsRouteGeometry(route.routes.first().directionsRoute))
-        seekTo(0.0)
-        play()
-      }
+      navigation.mapboxReplayer.stop()
+      navigation.mapboxReplayer.clearEvents()
     } else {
       navigation.startTripSession()
     }
     simulating = simulate
     updateCameraState(RNMBXNavigationCameraState.FOLLOWING)
+    // Otherwise the navigator first matches the new route against the previous session's extrapolated location.
+    navigation.resetTripSession {
+      if (guidanceStart !== start) return@resetTripSession
+      navigation.setNavigationRoutes(route.routes)
+      if (simulate) {
+        navigation.mapboxReplayer.run {
+          pushEvents(ReplayRouteMapper().mapDirectionsRouteGeometry(route.routes.first().directionsRoute))
+          seekTo(0.0)
+          play()
+        }
+      }
+    }
   }
 
   @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
   fun stopNavigation() {
     guidanceRoute = null
+    guidanceStart = null
     if (MapboxNavigationProvider.isCreated()) {
       val navigation = MapboxNavigationProvider.retrieve()
       unregisterObservers(navigation)
