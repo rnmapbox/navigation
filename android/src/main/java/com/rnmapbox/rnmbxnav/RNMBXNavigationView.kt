@@ -7,6 +7,10 @@ import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.ThemedReactContext
@@ -49,7 +53,7 @@ import java.util.Locale
 
 @SuppressLint("ViewConstructor")
 class RNMBXNavigationView(private val context: ThemedReactContext) :
-  FrameLayout(context), RNMBXNavigationSession.Listener {
+  FrameLayout(context), RNMBXNavigationSession.Listener, LifecycleOwner {
 
   var route: RNMBXNavigationRoute? = null
   var simulate = false
@@ -61,6 +65,9 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     }
 
   private val mapView = MapView(context)
+  private val lifecycleRegistry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.CREATED }
+  override val lifecycle: Lifecycle
+    get() = lifecycleRegistry
   private val mapBinding = RNMBXNavigationMapBinding(mapView)
 
   private val distanceFormatterOptions = DistanceFormatterOptions.Builder(context).build()
@@ -124,6 +131,8 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
   }
 
   init {
+    // Under the activity's lifecycle, the Maps lifecycle plugin keeps the map alive until the activity is destroyed.
+    mapView.setViewTreeLifecycleOwner(this)
     mapView.compass.enabled = false
     mapView.scalebar.enabled = false
     mapView.mapboxMap.subscribeStyleLoaded { mapView.mapboxMap.style?.let { arrowView.render(it, arrowApi.redraw()) } }
@@ -241,6 +250,23 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     voicePlayer = null
     maneuverApi.cancel()
     RNMBXNavigationSession.stopNavigation()
+  }
+
+  fun destroy() {
+    stop()
+    lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+  }
+
+  override fun onDetachedFromWindow() {
+    if (lifecycleRegistry.currentState != Lifecycle.State.DESTROYED) {
+      lifecycleRegistry.currentState = Lifecycle.State.CREATED
+    }
+    super.onDetachedFromWindow()
   }
 
   private fun applyMute() {

@@ -44,7 +44,7 @@ class RNMBXNavigationViewManager :
   }
 
   override fun onDropViewInstance(view: RNMBXNavigationView) {
-    view.stop()
+    view.destroy()
     super.onDropViewInstance(view)
   }
 
