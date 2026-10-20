@@ -160,3 +160,100 @@ jobs:
         run: |
           yarn turbo run build:ios --cache-dir="${{ env.TURBO_CACHE_DIR }}"
 
+
+  build-expo-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Install JDK
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Finalize Android SDK
+        run: |
+          /bin/bash -c "yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null"
+
+      - name: Expo prebuild
+        working-directory: expo-example
+        run: npx expo prebuild -p android --no-install
+
+      - name: Cache Gradle
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-expo-${{ hashFiles('expo-example/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-expo-
+            ${{ runner.os }}-gradle-
+
+      - name: Build expo-example for Android
+        working-directory: expo-example/android
+        env:
+          JAVA_OPTS: "-XX:MaxHeapSize=6g"
+        run: ./gradlew assembleDebug --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
+
+  build-expo-ios:
+    runs-on: macos-latest
+
+    env:
+      XCODE_VERSION: 26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Use appropriate Xcode version
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Expo prebuild
+        working-directory: expo-example
+        run: npx expo prebuild -p ios --no-install
+
+      - name: Cache CocoaPods
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: expo-example/ios/Pods
+          key: ${{ runner.os }}-pods-expo-${{ hashFiles('yarn.lock', '*.podspec', 'plugin/**', 'expo-example/app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-expo-
+
+      - name: Install CocoaPods
+        working-directory: expo-example/ios
+        run: pod install
+
+      - name: Cache Swift packages
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/tmp/spm
+          key: ${{ runner.os }}-spm-expo-${{ hashFiles('expo-example/ios/Pods/Pods.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-expo-
+
+      - name: Build expo-example for iOS
+        working-directory: expo-example/ios
+        run: |
+          set -o pipefail && xcodebuild \
+            -workspace NavigationExpoExample.xcworkspace \
+            -scheme NavigationExpoExample \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            -clonedSourcePackagesDirPath ~/tmp/spm \
+            build \
+            CODE_SIGNING_ALLOWED=NO

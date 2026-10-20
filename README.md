@@ -22,7 +22,29 @@ Navigation is billed per trip or MAU to the access token you pass, on top of Map
 yarn add @rnmapbox/navigation @rnmapbox/maps
 ```
 
-There's no Expo config plugin yet. With Expo, use a development build and apply the native setup below yourself.
+### Expo
+
+Use a [development build](https://docs.expo.dev/develop/development-builds/introduction/); Expo Go doesn't include the native SDKs. Add both config plugins to `app.json`:
+
+```json
+{
+  "expo": {
+    "plugins": [
+      ["@rnmapbox/maps", { "RNMapboxMapsVersion": "11.23.1" }],
+      "@rnmapbox/navigation"
+    ]
+  }
+}
+```
+
+Then run `npx expo prebuild --clean`. The `@rnmapbox/navigation` plugin only changes iOS:
+- sets `$RNMapboxMapsSwiftPackageManager = { link: false }` in the Podfile, see [iOS](#ios);
+- adds the Navigation SDK's binary frameworks to `rnmapbox-maps`' framework search paths, which Xcode 26 needs with React Native 0.88+;
+- sets `NSLocationWhenInUseUsageDescription`, unless `locationWhenInUsePermission` is `false`.
+
+On Android the `@rnmapbox/maps` plugin already adds the Mapbox Maven repository, and the Navigation SDK's manifest adds the location, foreground service and notification permissions.
+
+Options: `RNMapboxNavigationVersion` sets the Navigation SDK version on both platforms (set the maps plugin's `RNMapboxMapsVersion` to the matching 11.N), and `locationWhenInUsePermission` sets the usage string.
 
 ### iOS
 
@@ -293,12 +315,21 @@ yarn example ios                         # pod install runs automatically
 yarn example android
 ```
 
+The Expo example uses the same token; `expo-example/accesstoken` overrides it:
+
+```sh
+cd expo-example
+npx expo prebuild --clean
+npx expo run:ios
+npx expo run:android
+```
+
 ## Known limitations
 
 - No explicit offline routing API. Requests use the SDK's default hybrid router, which only falls back to onboard routing with routing tiles already on the device.
 - Navigation maps have no voice guidance, rerouting UI, alternatives or multi-leg UI; `<NavigationView>` has the SDK's.
 - Android `<NavigationView>` has no end-of-route, feedback or alternative-route UI, no day/night styles, no road name label, and doesn't show reroutes as such.
-- No Expo config plugin.
+- The Expo config plugin is only tested with Expo SDK 58.
 - `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.
 - One navigation session for all navigation maps. Per-map routes or cameras aren't supported.
 - Route progress events already on their way to JS still arrive after `stopNavigation`. Ignore them if you need to.
