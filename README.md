@@ -1,19 +1,28 @@
 # @rnmapbox/navigation
 
-Thin React Native wrapper around the [Mapbox Navigation SDK v3](https://docs.mapbox.com/navigation/) for iOS and Android.
-It requests routes, runs an active-guidance session and reports route progress. It renders the route line, the puck and the navigation camera on an [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) `MapView`.
+_A community-supported, open-source React Native library for the [Mapbox Navigation SDK v3](https://docs.mapbox.com/navigation/) for iOS and Android, built on [`@rnmapbox/maps`](https://github.com/rnmapbox/maps)._
 
-Requires React Native 0.79+ with the New Architecture and `@rnmapbox/maps` 10.3.10+.
+It's headless: it requests routes, runs an active-guidance session and reports route progress, and the Navigation SDK draws the route line, the puck and the navigation camera on a regular `@rnmapbox/maps` `MapView`. There are no drop-in navigation UI views yet.
 
-> Status: prototype, not published.
+> Status: early alpha, not published to npm yet. APIs may change.
 
-## Install
+## Requirements
+
+- React Native 0.79+ with the New Architecture.
+- [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) >= 10.3.11 (peer dependency).
+- iOS: React Native's minimum deployment target (15.1 for React Native 0.84; the Navigation SDK itself needs iOS 14). Mapbox Navigation SDK for iOS 3.23.1 (`MapboxNavigationCore`), added as a Swift package.
+- Android: `minSdkVersion` 24, `compileSdkVersion` 36. Mapbox Navigation SDK for Android 3.23.1 (`com.mapbox.navigationcore:navigation` and `ui-maps`).
+- A [Mapbox account](https://account.mapbox.com/auth/signup/) and a public access token (`pk.…`). Neither platform needs a secret downloads token: the Android release artifacts and the iOS Swift package binaries download without one.
+
+Navigation is billed per trip or MAU to the access token you pass, on top of Maps usage. See [Navigation SDK pricing](https://www.mapbox.com/pricing#navigation).
+
+## Installation
 
 ```sh
 yarn add @rnmapbox/navigation @rnmapbox/maps
 ```
 
-Navigation is billed per trip or MAU to the access token you pass, on top of Maps usage. See [Mapbox pricing](https://www.mapbox.com/pricing).
+There's no Expo config plugin yet. With Expo, use a development build and apply the native setup below yourself.
 
 ### iOS
 
@@ -54,7 +63,7 @@ $RNMapboxNavigationSwiftPackageManager = 'manual'
 
 ### Android
 
-Add the Mapbox Maven repository, the same one `@rnmapbox/maps` uses. Release artifacts don't need a downloads token.
+Add the Mapbox Maven repository, the same one `@rnmapbox/maps` uses.
 
 ```groovy
 // android/build.gradle
@@ -78,52 +87,106 @@ allprojects {
 
 With `targetSdkVersion` 35 or higher, `@rnmapbox/maps` uses the `-ndk27` Maps artifacts (16 KB pages). `@rnmapbox/navigation` applies the same rule to the Navigation artifacts, so both use the same Maps and Common artifacts. Keep `targetSdkVersion` in the root project `ext`, where both libraries read it.
 
-## Usage
+### Version pinning
+
+| @rnmapbox/navigation | Navigation SDK | Maps SDK (pinned by Nav) |
+| -------------------- | -------------- | ------------------------ |
+| 0.1.x                | 3.23.1         | 11.23.1                  |
+
+Navigation SDK 3.N depends on Maps SDK 11.N exactly. On Android, set `RNMapboxMapsVersion` to the matching 11.N. On iOS, `@rnmapbox/maps`' Swift package requirement must allow it.
+
+## Getting started
+
+Request a route, show it on a navigation map, and start simulated guidance:
 
 ```tsx
-import Mapbox, { MapView, Camera } from '@rnmapbox/maps';
+import { useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
+import Mapbox, { Camera, MapView } from '@rnmapbox/maps';
 import Navigation, {
   NAVIGATION_MAP_VIEW_IMPL,
   NavigationViewport,
+  type Position,
+  type Route,
+  type RouteProgressEvent,
 } from '@rnmapbox/navigation';
 
-Mapbox.setAccessToken('pk....');
-Navigation.setAccessToken('pk....');
+const ACCESS_TOKEN = 'pk....';
+Mapbox.setAccessToken(ACCESS_TOKEN);
+Navigation.setAccessToken(ACCESS_TOKEN);
 
-function NavigationScreen() {
+const ORIGIN: Position = [-122.39726, 37.79205]; // [longitude, latitude]
+const DESTINATION: Position = [-122.39351, 37.79554];
+
+export function NavigationScreen() {
+  const [progress, setProgress] = useState<RouteProgressEvent>();
+
+  useEffect(() => {
+    const subscription = Navigation.addRouteProgressListener(setProgress);
+    let route: Route | undefined;
+    let cancelled = false;
+
+    Navigation.requestRoutes({ waypoints: [ORIGIN, DESTINATION] })
+      .then(({ main, alternatives }) => {
+        alternatives.forEach((alternative) => alternative.release());
+        route = main;
+        if (cancelled) {
+          main.release();
+          return;
+        }
+        // Switches the camera to 'following'.
+        return Navigation.startActiveGuidance(main, { simulate: true });
+      })
+      .catch((error) => console.warn(error));
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+      Navigation.stopNavigation();
+      route?.release();
+    };
+  }, []);
+
   return (
-    <MapView style={{ flex: 1 }} mapViewImpl={NAVIGATION_MAP_VIEW_IMPL}>
-      <Camera defaultSettings={{ centerCoordinate: [-122.397, 37.792], zoomLevel: 14 }} />
-      {/* Keeps the puck and the route clear of UI drawn over the map. */}
-      <NavigationViewport padding={{ top: 160, bottom: 120, left: 16, right: 16 }} />
-    </MapView>
+    <View style={{ flex: 1 }}>
+      <MapView style={{ flex: 1 }} mapViewImpl={NAVIGATION_MAP_VIEW_IMPL}>
+        <Camera defaultSettings={{ centerCoordinate: ORIGIN, zoomLevel: 14 }} />
+        {/* Keeps the puck and the route clear of UI drawn over the map. */}
+        <NavigationViewport
+          padding={{ top: 16, bottom: 120, left: 16, right: 16 }}
+        />
+      </MapView>
+      {progress && (
+        <Text>
+          {progress.maneuverInstruction} in{' '}
+          {Math.round(progress.stepDistanceRemaining)} m
+        </Text>
+      )}
+    </View>
   );
 }
-
-const { main, alternatives } = await Navigation.requestRoutes({
-  waypoints: [
-    [-122.39726, 37.79205], // origin, [longitude, latitude]
-    { coordinate: [-122.39351, 37.79554], name: 'Ferry Building' },
-  ],
-  alternatives: true,
-});
-alternatives.forEach((route) => route.release());
-console.log(main.distance, main.expectedTravelTime, main.legs[0].stepCount);
-Navigation.previewRoute(main); // shows it on navigation maps
-
-const progress = Navigation.addRouteProgressListener((event) => {
-  console.log(event.maneuverInstruction, event.stepDistanceRemaining, event.fractionTraveled);
-});
-const camera = Navigation.addCameraStateListener((state) => console.log(state));
-
-await Navigation.startActiveGuidance(main, { simulate: true }); // camera switches to 'following'
-Navigation.setCameraState('overview');
-// ...
-Navigation.stopNavigation();
-main.release();
-progress.remove();
-camera.remove();
 ```
+
+`Navigation.previewRoute(route)` shows a route on navigation maps before guidance starts, and `Navigation.setCameraState('overview')` fits the rest of the route.
+
+## API
+
+`Navigation` is the default export and also a named export.
+
+| Function                                     | Description                                                            |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| `setAccessToken(token)`                      | Must be called before any request.                                     |
+| `getSdkVersion()`                            | Version of the native Navigation SDK.                                  |
+| `requestRoutes(options)`                     | `{ main, alternatives }` routes through `options.waypoints`; also `profile`, `alternatives`, `exclude`, `language`, `units`. |
+| `previewRoute(route \| null)`                | Shows a route on navigation maps, or removes it.                       |
+| `startActiveGuidance(route, { simulate })`   | Starts guidance along `route`; `simulate` drives it with simulated locations. |
+| `stopNavigation()`                           | Stops guidance and clears the maps.                                    |
+| `getRouteStats()`                            | Counts of live, released and garbage-collected routes.                 |
+| `setCameraState(state)` / `getCameraState()` | `'following'`, `'overview'` or `'idle'`.                               |
+| `addCameraStateListener(listener)`           | Camera state changes.                                                  |
+| `addRouteProgressListener(listener)`         | Distance, duration and fraction remaining, and the next maneuver.      |
+| `NAVIGATION_MAP_VIEW_IMPL`                   | `mapViewImpl` value for navigation maps.                               |
+| `<NavigationViewport padding />`             | Per-map camera padding.                                                |
 
 ### Routes
 
@@ -176,46 +239,11 @@ The state switches to `idle` when:
 
 After `stopNavigation`, the route and the puck are removed and the camera eases back to north-up, without tilt or padding.
 
-### API
+## Example app
 
-| Function                                   | Description                                                            |
-| ------------------------------------------ | ---------------------------------------------------------------------- |
-| `setAccessToken(token)`                    | Must be called before any request.                                     |
-| `getSdkVersion()`                          | Version of the native Navigation SDK.                                  |
-| `requestRoutes(options)`                   | `{ main, alternatives }` routes through `options.waypoints`; also `profile`, `alternatives`, `exclude`, `language`, `units`. |
-| `previewRoute(route \| null)`              | Shows a route on navigation maps, or removes it.                       |
-| `startActiveGuidance(route, { simulate })` | Starts guidance along `route`; `simulate` drives it with simulated locations. |
-| `getRouteStats()`                          | Counts of live, released and garbage-collected routes.                |
-| `stopNavigation()`                         | Stops guidance and clears the maps.                                    |
-| `setCameraState(state)` / `getCameraState()` | `'following'`, `'overview'` or `'idle'`.                             |
-| `addCameraStateListener(listener)`         | Camera state changes.                                                  |
-| `addRouteProgressListener(listener)`       | Distance, duration and fraction remaining, and the next maneuver.     |
-| `NAVIGATION_MAP_VIEW_IMPL`                 | `mapViewImpl` value for navigation maps.                               |
-| `<NavigationViewport padding />`           | Per-map camera padding.                                                |
+`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, and a "Route lifecycle" screen with `Route` checks and live counts.
 
-## Limitations
-
-- `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.
-- One navigation session for all navigation maps. Per-map routes or cameras aren't supported.
-- Route progress events already on their way to JS still arrive after `stopNavigation`. Ignore them if you need to.
-- Not tested yet: live (non-simulated) guidance on a device, release builds, several navigation maps at once, and unmounting a map during guidance.
-- No voice guidance, rerouting UI, alternatives or multi-leg UI.
-
-## Version pinning
-
-| @rnmapbox/navigation | Navigation SDK | Maps SDK (pinned by Nav) |
-| -------------------- | -------------- | ------------------------ |
-| 0.1.x                | 3.23.1         | 11.23.1                  |
-
-Navigation SDK 3.N depends on Maps SDK 11.N exactly. On Android, set `RNMapboxMapsVersion` to the matching 11.N. On iOS, `@rnmapbox/maps`' Swift package requirement must allow it.
-
-## Example
-
-| Directory  | React Native | Notes                                                    |
-| ---------- | ------------ | -------------------------------------------------------- |
-| `example/` | 0.84.1       | navigation map with route preview, simulated guidance and camera states; "Route lifecycle" screen with `Route` checks and live counts |
-
-The example reads your Mapbox access token from `example/accesstoken` (gitignored), the same way the `@rnmapbox/maps` example does:
+It reads your Mapbox access token from `example/accesstoken` (gitignored), the same way the `@rnmapbox/maps` example does:
 
 ```sh
 nvm use                                  # Node 22.16.0
@@ -227,6 +255,17 @@ yarn example ios                         # pod install runs automatically
 yarn example android
 ```
 
+## Known limitations
+
+- No drop-in navigation UI views (maneuver banner, trip progress, buttons) yet; build them from the route progress events.
+- No explicit offline routing API. Requests use the SDK's default hybrid router, which only falls back to onboard routing with routing tiles already on the device.
+- No voice guidance, rerouting UI, alternatives or multi-leg UI.
+- No Expo config plugin.
+- `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.
+- One navigation session for all navigation maps. Per-map routes or cameras aren't supported.
+- Route progress events already on their way to JS still arrive after `stopNavigation`. Ignore them if you need to.
+- Not tested yet: live (non-simulated) guidance on a device, release builds, several navigation maps at once, and unmounting a map during guidance.
+
 ## Development
 
 ```sh
@@ -236,6 +275,12 @@ yarn test
 yarn prepare   # builds lib/ with react-native-builder-bob
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
-MIT for this wrapper. The Mapbox Navigation SDK is proprietary and governed by the [Mapbox Terms of Service](https://www.mapbox.com/legal/tos); it's a dependency and isn't redistributed here.
+`@rnmapbox/navigation` is [MIT](LICENSE) licensed.
+
+- The Mapbox Navigation SDKs for iOS and Android it builds on are proprietary. Their use is governed by the [Mapbox Terms of Service](https://www.mapbox.com/legal/tos) and [Navigation SDK pricing](https://www.mapbox.com/pricing#navigation). They're dependencies and aren't redistributed here.
+- You need a Mapbox account and access token to use them.
+- This is a community-maintained package, not an official Mapbox product.
