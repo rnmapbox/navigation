@@ -31,6 +31,7 @@ import com.rnmapbox.rnmbx.components.mapview.Cancelable
 import com.rnmapbox.rnmbx.components.mapview.OnCameraWillMoveMapListener
 import com.rnmapbox.rnmbx.components.mapview.RNMBXMapView
 import com.rnmapbox.rnmbx.components.mapview.RNMBXMapViewFactory
+import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 
 /**
@@ -53,14 +54,15 @@ object RNMBXNavigationMapFactory {
     )
     parent.addView(mapView)
     val binding = RNMBXNavigationMapBinding(mapView, parent)
-    bindings[mapView] = binding
+    bindings[mapView] = WeakReference(binding)
     return mapView
   }
 
-  private val bindings = WeakHashMap<MapView, RNMBXNavigationMapBinding>()
+  // The binding references its map, so a strong value would keep the key alive.
+  private val bindings = WeakHashMap<MapView, WeakReference<RNMBXNavigationMapBinding>>()
 
   /** The binding of a map created by this factory, or null for other maps. */
-  fun binding(mapView: MapView): RNMBXNavigationMapBinding? = bindings[mapView]
+  fun binding(mapView: MapView): RNMBXNavigationMapBinding? = bindings[mapView]?.get()
 }
 
 /** Mirrors [RNMBXNavigationSession] onto one MapView while it's attached to a window. */
