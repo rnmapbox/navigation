@@ -26,9 +26,9 @@ runs:
       run: yarn install --immutable
       shell: bash
 
-    # The examples' postinstall writes env.json, but a cache hit skips yarn install.
+    # The examples' postinstall writes env.json, but yarn skips it on a cache hit, and on a partial
+    # restore for workspaces whose dependencies didn't change.
     - name: Generate example env.json
-      if: steps.yarn-cache.outputs.cache-hit == 'true'
       run: |
         node example/scripts/set_access_token.js
         node expo-example/scripts/set_access_token.js
