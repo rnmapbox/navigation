@@ -14,7 +14,7 @@ public final class RNMBXNavigationView: UIView {
 
   @objc public var simulate = false
   @objc public var mute = false {
-    didSet { voiceController?.speechSynthesizer.muted = mute }
+    didSet { applyMute() }
   }
 
   @objc public var route: RNMBXNavigationRoute? {
@@ -72,9 +72,11 @@ public final class RNMBXNavigationView: UIView {
       onError?(["code": "start_failed", "message": error.localizedDescription])
       return
     }
-    Task { @MainActor [weak self] in
-      guard let self else { return }
-      voiceController?.speechSynthesizer.muted = mute
+    // The new speech synthesizer and the view controller's `viewWillAppear` both reset mute on a later turn.
+    defer {
+      Task { @MainActor [weak self] in
+        self?.applyMute()
+      }
     }
     if navigationViewController != nil {
       navigation.tripSession().startActiveGuidance(with: route.routes, startLegIndex: 0)
@@ -113,6 +115,16 @@ public final class RNMBXNavigationView: UIView {
         }
       }
       .store(in: &subscriptions)
+  }
+
+  private func applyMute() {
+    voiceController?.speechSynthesizer.muted = mute
+    muteButton?.isSelected = mute
+  }
+
+  /// The SDK keeps its mute button internal; it's the only floating button with a selected image.
+  private var muteButton: UIButton? {
+    navigationViewController?.floatingButtons?.first { $0.image(for: .selected) != $0.image(for: .normal) }
   }
 
   private func removeNavigationViewController() {
