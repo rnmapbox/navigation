@@ -1,0 +1,46 @@
+name: Bump version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semver type of new version (major / minor / patch)'
+        required: true
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+        - preminor --preid=alpha
+        - prerelease --preid=alpha
+        - preminor --preid=beta
+        - prerelease --preid=beta
+        - prerelease --preid=rc
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    # Pushing with GITHUB_TOKEN doesn't trigger other workflows; that's fine
+    # because publish.yml runs on release creation, not on the tag push.
+    - name: Check out source
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version-file: .nvmrc
+
+    - name: Setup Git
+      run: |
+        git config user.name 'RNMapbox robot'
+        git config user.email 'rnmapbox@gmail.com'
+
+    - name: Bump version
+      run: npm version ${{ github.event.inputs.version }}
+
+    - name: Push latest version
+      run: git push origin main --follow-tags
