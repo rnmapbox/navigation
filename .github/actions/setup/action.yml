@@ -26,6 +26,12 @@ runs:
       run: yarn install --immutable
       shell: bash
 
+    # The example's postinstall writes env.json, but a cache hit skips yarn install.
+    - name: Generate example env.json
+      if: steps.yarn-cache.outputs.cache-hit == 'true'
+      run: node example/scripts/set_access_token.js
+      shell: bash
+
     - name: Cache dependencies
       if: steps.yarn-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
