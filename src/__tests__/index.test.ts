@@ -8,6 +8,7 @@ jest.mock('../specs/NativeRNMBXNavigationModule', () => ({
   default: {
     setAccessToken: jest.fn(),
     getSdkVersion: jest.fn(() => '3.23.1'),
+    getDefaultDistanceUnit: jest.fn(() => 'imperial'),
     stopNavigation: jest.fn(),
     setCameraState: jest.fn(),
     getCameraState: jest.fn(() => 'following'),
@@ -40,6 +41,7 @@ describe('Navigation', () => {
 
   it('returns the native SDK version', () => {
     expect(Navigation.getSdkVersion()).toBe('3.23.1');
+    expect(Navigation.getDefaultDistanceUnit()).toBe('imperial');
   });
 
   it('converts waypoints for requestRoutes', async () => {

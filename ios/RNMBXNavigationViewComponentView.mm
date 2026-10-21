@@ -10,6 +10,20 @@
 
 using namespace facebook::react;
 
+template <typename Component>
+static std::vector<Component> bannerComponents(NSArray<NSDictionary *> *components)
+{
+  std::vector<Component> result;
+  for (NSDictionary *component in components) {
+    result.push_back({
+        .type = std::string([component[@"type"] UTF8String]),
+        .text = std::string([component[@"text"] UTF8String]),
+        .imageUrl = std::string([component[@"imageUrl"] UTF8String]),
+    });
+  }
+  return result;
+}
+
 @interface RNMBXNavigationViewComponentView () <RCTRNMBXNavigationViewViewProtocol>
 @end
 
@@ -45,9 +59,13 @@ using namespace facebook::react;
             .fractionTraveled = [event[@"fractionTraveled"] doubleValue],
             .stepDistanceRemaining = [event[@"stepDistanceRemaining"] doubleValue],
             .maneuverInstruction = std::string([event[@"maneuverInstruction"] UTF8String]),
+            .maneuverComponents = bannerComponents<RNMBXNavigationViewEventEmitter::OnRouteProgressManeuverComponents>(
+                event[@"maneuverComponents"]),
             .maneuverType = std::string([event[@"maneuverType"] UTF8String]),
             .maneuverModifier = std::string([event[@"maneuverModifier"] UTF8String]),
             .secondaryInstruction = std::string([event[@"secondaryInstruction"] UTF8String]),
+            .secondaryComponents = bannerComponents<RNMBXNavigationViewEventEmitter::OnRouteProgressSecondaryComponents>(
+                event[@"secondaryComponents"]),
             .subInstruction = std::string([event[@"subInstruction"] UTF8String]),
             .lanes = std::move(lanes),
             .legIndex = [event[@"legIndex"] intValue],

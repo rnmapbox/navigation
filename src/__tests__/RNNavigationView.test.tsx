@@ -6,7 +6,10 @@ import NativeNavigation, {
   type RouteProgressEvent,
 } from '../specs/NativeRNMBXNavigationModule';
 
-jest.mock('@rnmapbox/maps', () => ({ MapView: 'MapView' }));
+jest.mock('@rnmapbox/maps', () => ({
+  MapView: 'MapView',
+  StyleImport: 'StyleImport',
+}));
 
 jest.mock('../specs/RNMBXNavigationViewportNativeComponent', () => ({
   __esModule: true,
@@ -21,6 +24,7 @@ jest.mock('../specs/NativeRNMBXNavigationModule', () => {
       stopNavigation: jest.fn(),
       setCameraState: jest.fn(),
       getCameraState: jest.fn(() => 'following'),
+      getDefaultDistanceUnit: jest.fn(() => 'metric'),
       setVoiceMuted: jest.fn(),
       onRouteProgress: emitter(),
       onCameraStateChange: emitter(),
@@ -56,9 +60,13 @@ const progress: RouteProgressEvent = {
   fractionTraveled: 0.04,
   stepDistanceRemaining: 150,
   maneuverInstruction: 'Turn right onto Market Street',
+  maneuverComponents: [
+    { type: 'text', text: 'Turn right onto Market Street', imageUrl: '' },
+  ],
   maneuverType: 'turn',
   maneuverModifier: 'right',
   secondaryInstruction: '',
+  secondaryComponents: [],
   subInstruction: '',
   lanes: [
     { indications: ['left'], valid: false, activeDirection: '' },
@@ -76,12 +84,15 @@ function emit<T>(emitter: jest.Mock, event: T) {
   act(() => (emitter.mock.calls[0]![0] as (event: T) => void)(event));
 }
 
-function text(renderer: ReactTestRenderer, testID: string) {
-  const node = renderer.root.find(
+function host(renderer: ReactTestRenderer, testID: string) {
+  return renderer.root.find(
     (element) =>
       element.props.testID === testID && typeof element.type === 'string'
   );
-  return [node.props.children].flat().join('');
+}
+
+function text(renderer: ReactTestRenderer, testID: string) {
+  return [host(renderer, testID).props.children].flat().join('');
 }
 
 async function render(element: React.ReactElement) {
@@ -158,11 +169,126 @@ describe('RNNavigationView', () => {
     expect(native.setCameraState).toHaveBeenLastCalledWith('following');
   });
 
-  it('reports arrival and ends the trip', async () => {
+  it('draws road shields and exit numbers', async () => {
+    const renderer = await render(<RNNavigationView route={route} />);
+    emit(native.onRouteProgress, {
+      ...progress,
+      maneuverInstruction: 'Exit 4B',
+      maneuverComponents: [
+        { type: 'exit', text: 'Exit', imageUrl: '' },
+        { type: 'exit-number', text: '4B', imageUrl: '' },
+      ],
+      secondaryInstruction: 'I 80 East / Oakland',
+      secondaryComponents: [
+        {
+          type: 'icon',
+          text: 'I 80',
+          imageUrl: 'https://api.mapbox.com/public/shields/v4.1/US/i-80@3x.png',
+        },
+        { type: 'text', text: 'East', imageUrl: '' },
+        { type: 'delimiter', text: '/', imageUrl: '' },
+        { type: 'text', text: 'Oakland', imageUrl: '' },
+      ],
+    });
+
+    expect(
+      renderer.root
+        .findByProps({ testID: 'rn-navigation-exit' })
+        .findByType('Text' as never).props.children
+    ).toEqual(['4B', ' ', '↗']);
+    expect(
+      host(renderer, 'rn-navigation-instruction').props.accessibilityLabel
+    ).toBe('Exit 4B');
+    expect(host(renderer, 'rn-navigation-shield').props.source).toEqual({
+      uri: 'https://api.mapbox.com/public/shields/v4.1/US/i-80@3x.png',
+    });
+  });
+
+  it('formats distances in the given unit and requests voice in it', async () => {
+    bindings.requestRoutes.mockReturnValueOnce(new Promise(() => {}));
+    const renderer = await render(
+      <RNNavigationView
+        route={route}
+        waypoints={[
+          [0, 0],
+          [1, 1],
+        ]}
+        distanceUnit="imperial"
+      />
+    );
+    emit(native.onRouteProgress, progress);
+    expect(
+      renderer.root
+        .findByProps({ testID: 'rn-navigation-trip' })
+        .findAllByType('Text' as never)[1]!
+        .props.children.join('')
+    ).toBe('5 min · 1.5 mi');
+    expect(bindings.requestRoutes).not.toHaveBeenCalled();
+
+    await act(async () =>
+      renderer.update(
+        <RNNavigationView
+          waypoints={[
+            [0, 0],
+            [1, 1],
+          ]}
+          distanceUnit="imperial"
+        />
+      )
+    );
+    expect(bindings.requestRoutes).toHaveBeenCalledWith({
+      waypoints: [
+        { longitude: 0, latitude: 0 },
+        { longitude: 1, latitude: 1 },
+      ],
+      alternatives: true,
+      units: 'imperial',
+    });
+  });
+
+  it('switches the map and its UI to night', async () => {
+    const lightPreset = (renderer: ReactTestRenderer) =>
+      renderer.root.findByType('StyleImport' as never).props.config.lightPreset;
+    const renderer = await render(<RNNavigationView route={route} />);
+    expect(lightPreset(renderer)).toBe('day');
+
+    jest.useFakeTimers({ now: new Date('2026-06-22T08:00:00Z') });
+    emit(native.onLocationChange, {
+      latitude: 37.79,
+      longitude: -122.39,
+      speed: 10,
+      course: 90,
+      roadName: '',
+    });
+    jest.useRealTimers();
+    expect(lightPreset(renderer)).toBe('night');
+
+    await act(async () =>
+      renderer.update(<RNNavigationView route={route} appearance="day" />)
+    );
+    expect(lightPreset(renderer)).toBe('day');
+
+    await act(async () =>
+      renderer.update(
+        <RNNavigationView route={route} styleURL="mapbox://styles/me/custom" />
+      )
+    );
+    expect(renderer.root.findAllByType('StyleImport' as never)).toHaveLength(0);
+  });
+
+  it('shows the arrival card and ends the trip from it', async () => {
     const onArrive = jest.fn();
     const onCancel = jest.fn();
+    bindings.requestRoutes.mockResolvedValueOnce({
+      main: route,
+      alternatives: [],
+    });
     const renderer = await render(
-      <RNNavigationView route={route} onArrive={onArrive} onCancel={onCancel} />
+      <RNNavigationView
+        waypoints={[[0, 0], { coordinate: [1, 1], name: 'Ferry Building' }]}
+        onArrive={onArrive}
+        onCancel={onCancel}
+      />
     );
     emit(native.onRouteProgress, progress);
     emit(native.onArrive, { waypointIndex: 1, isFinalDestination: true });
@@ -170,10 +296,17 @@ describe('RNNavigationView', () => {
       waypointIndex: 1,
       isFinalDestination: true,
     });
-    expect(text(renderer, 'rn-navigation-arrived')).toBe('You have arrived');
+    const card = renderer.root.findByProps({
+      testID: 'rn-navigation-arrived',
+    });
+    expect(
+      card.findAllByType('Text' as never).map((node) => node.props.children)
+    ).toEqual(['You have arrived', 'Ferry Building', 'End navigation']);
 
     await act(async () =>
-      renderer.root.findByProps({ testID: 'rn-navigation-end' }).props.onPress()
+      renderer.root
+        .findByProps({ testID: 'rn-navigation-done' })
+        .props.onPress()
     );
     expect(native.stopNavigation).toHaveBeenCalled();
     expect(onCancel).toHaveBeenCalled();

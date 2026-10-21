@@ -27,7 +27,19 @@ export function maneuverGlyph(type: string, modifier: string): string {
   }
 }
 
-export function formatDistance(meters: number): string {
+export type DistanceUnit = 'metric' | 'imperial';
+
+export function formatDistance(
+  meters: number,
+  unit: DistanceUnit = 'metric'
+): string {
+  if (unit === 'imperial') {
+    const miles = meters / 1609.344;
+    if (miles >= 0.1) {
+      return `${miles.toFixed(miles >= 10 ? 0 : 1)} mi`;
+    }
+    return `${Math.max(0, Math.round((meters * 3.28084) / 50) * 50)} ft`;
+  }
   if (meters >= 1000) {
     return `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`;
   }
@@ -53,4 +65,35 @@ export function formatArrival(
   const arrival = new Date(now.getTime() + secondsFromNow * 1000);
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${pad(arrival.getHours())}:${pad(arrival.getMinutes())}`;
+}
+
+const RADIANS = Math.PI / 180;
+
+/** Whether the sun is below the horizon at the location, the switch the native view's day and night styles use. */
+export function isNight(latitude: number, longitude: number, date: Date) {
+  // Low-precision solar position from the Astronomical Almanac, good to about a minute of sunrise/sunset time.
+  const days = date.getTime() / 86400000 - 10957.5;
+  const meanAnomaly = (357.529 + 0.98560028 * days) * RADIANS;
+  const meanLongitude = 280.459 + 0.98564736 * days;
+  const eclipticLongitude =
+    (meanLongitude +
+      1.915 * Math.sin(meanAnomaly) +
+      0.02 * Math.sin(2 * meanAnomaly)) *
+    RADIANS;
+  const obliquity = (23.439 - 0.00000036 * days) * RADIANS;
+  const rightAscension = Math.atan2(
+    Math.cos(obliquity) * Math.sin(eclipticLongitude),
+    Math.cos(eclipticLongitude)
+  );
+  const declination = Math.asin(
+    Math.sin(obliquity) * Math.sin(eclipticLongitude)
+  );
+  const siderealDegrees = (280.46061837 + 360.98564736629 * days) % 360;
+  const hourAngle = (siderealDegrees + longitude) * RADIANS - rightAscension;
+  const lat = latitude * RADIANS;
+  const altitude = Math.asin(
+    Math.sin(lat) * Math.sin(declination) +
+      Math.cos(lat) * Math.cos(declination) * Math.cos(hourAngle)
+  );
+  return altitude < -0.833 * RADIANS;
 }

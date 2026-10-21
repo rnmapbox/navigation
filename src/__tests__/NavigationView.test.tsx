@@ -77,6 +77,7 @@ describe('NavigationView', () => {
         { longitude: -122.39726, latitude: 37.79205 },
         { longitude: -122.39351, latitude: 37.79554, name: 'Ferry Building' },
       ],
+      alternatives: true,
     });
     expect(alternative.release).toHaveBeenCalled();
     expect(nativeProps(renderer).routeId).toBe(3);

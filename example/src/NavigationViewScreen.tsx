@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { NavigationView, type Position } from '@rnmapbox/navigation';
 
+import { TREASURE_ISLAND } from './RNNavigationViewScreen';
+
 export default function NavigationViewScreen({
   origin,
   destination,
@@ -12,6 +14,7 @@ export default function NavigationViewScreen({
   onClose: () => void;
 }) {
   const [mute, setMute] = useState(false);
+  const [viaBayBridge, setViaBayBridge] = useState(false);
   const [status, setStatus] = useState('requesting route…');
   const [progressCount, setProgressCount] = useState(0);
   const [arrival, setArrival] = useState('');
@@ -22,10 +25,11 @@ export default function NavigationViewScreen({
       <NavigationView
         style={StyleSheet.absoluteFill}
         testID="navigation-view"
-        waypoints={[
-          origin,
-          { coordinate: destination, name: 'Ferry Building' },
-        ]}
+        waypoints={
+          viaBayBridge
+            ? [origin, { coordinate: TREASURE_ISLAND, name: 'Treasure Island' }]
+            : [origin, { coordinate: destination, name: 'Ferry Building' }]
+        }
         simulate
         mute={mute}
         onRouteProgress={(event) => {
@@ -60,6 +64,11 @@ export default function NavigationViewScreen({
             label={mute ? 'Unmute' : 'Mute'}
             onPress={() => setMute(!mute)}
             testID="navigation-view-mute"
+          />
+          <Button
+            label={viaBayBridge ? 'Ferry Building' : 'Via Bay Bridge'}
+            onPress={() => setViaBayBridge(!viaBayBridge)}
+            testID="navigation-view-destination"
           />
           <Button
             label="Close"

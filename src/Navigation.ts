@@ -6,6 +6,7 @@ import NativeNavigation, {
   type RouteProgressEvent,
   type VoiceInstructionEvent,
 } from './specs/NativeRNMBXNavigationModule';
+import type { DistanceUnit } from './guidance';
 import {
   routeBindings,
   toNativeWaypoint,
@@ -38,6 +39,11 @@ export const Navigation = {
   /** Version of the native Mapbox Navigation SDK linked into the app. */
   getSdkVersion(): string {
     return NativeNavigation.getSdkVersion();
+  },
+
+  /** The unit the device's region and measurement settings call for, which the native views use. */
+  getDefaultDistanceUnit(): DistanceUnit {
+    return NativeNavigation.getDefaultDistanceUnit() as DistanceUnit;
   },
 
   /**

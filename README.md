@@ -200,6 +200,7 @@ export function NavigationScreen() {
 | -------------------------------------------- | ---------------------------------------------------------------------- |
 | `setAccessToken(token)`                      | Must be called before any request.                                     |
 | `getSdkVersion()`                            | Version of the native Navigation SDK.                                  |
+| `getDefaultDistanceUnit()`                   | `'metric'` or `'imperial'`, from the device's region and measurement settings. |
 | `requestRoutes(options)`                     | `{ main, alternatives }` routes through `options.waypoints`; also `profile`, `alternatives`, `exclude`, `language`, `units`. |
 | `previewRoute(route \| null)`                | Shows a route on navigation maps, or removes it.                       |
 | `startActiveGuidance(route, { simulate })`   | Starts guidance along `route`; `simulate` drives it with simulated locations. |
@@ -320,7 +321,16 @@ It uses the app's single navigation session:
 
 ### RNNavigationView
 
-`<RNNavigationView>` is the same kind of navigation UI written in React Native on top of the API above: a navigation map plus a maneuver banner with lanes, a speed limit sign, the road name, ETA and remaining time and distance, mute, overview/recenter and end buttons, and an arrival message. It takes the same props as `<NavigationView>`, plus `styleURL` and `children`, which it renders inside its `MapView`. Use it as is, or copy it as a starting point for your own UI.
+`<RNNavigationView>` is the same kind of navigation UI written in React Native on top of the API above: a navigation map plus a maneuver banner with road shields, exit numbers and lanes, a speed limit sign, the road name, ETA and remaining time and distance, mute, overview/recenter and end buttons, and an arrival card. It takes the same props as `<NavigationView>`, plus:
+
+- `distanceUnit`: `'metric'` or `'imperial'`, for the distances it shows and the voice instructions of a route it requests through `waypoints`. Defaults to `getDefaultDistanceUnit()`.
+- `appearance`: `'auto'` (default) switches between `'day'` and `'night'` at sunrise and sunset at the user's location; the UI and the Standard style's light preset follow it.
+- `styleURL`, defaulting to Mapbox Standard. With another style, `appearance` only changes the UI.
+- `children`, rendered inside its `MapView`.
+
+With `waypoints` it also requests alternative routes. Navigation maps draw the alternatives of the active guidance, and tapping one switches guidance to it, which `addRouteChangeListener` reports with `reason: 'alternative'`.
+
+Use it as is, or copy it as a starting point for your own UI.
 
 ## Example app
 
@@ -350,8 +360,8 @@ npx expo run:android
 ## Known limitations
 
 - No explicit offline routing API. Requests use the SDK's default hybrid router, which only falls back to onboard routing with routing tiles already on the device.
-- Navigation maps show no alternative routes during guidance.
-- Android `<NavigationView>` has no end-of-route, feedback or alternative-route UI, no day/night styles, no road name label, and doesn't show reroutes as such.
+- Android `<NavigationView>` has no end-of-route or feedback UI, no day/night styles, no road name label, and doesn't show reroutes as such.
+- `<RNNavigationView>` draws road shields from the Directions API's shield images, not the Mapbox designed shields the native banners use.
 - The Expo config plugin is only tested with Expo SDK 58.
 - `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.
 - One navigation session for all navigation maps. Per-map routes or cameras aren't supported.

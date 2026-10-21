@@ -2,12 +2,19 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Navigation, {
   RNNavigationView,
+  type DistanceUnit,
   type Position,
+  type RNNavigationViewAppearance,
   type Waypoint,
 } from '@rnmapbox/navigation';
 
+const APPEARANCES: RNNavigationViewAppearance[] = ['auto', 'day', 'night'];
+
 // Through the city to the Bay Bridge, which has lanes and posted speed limits.
-const TREASURE_ISLAND: Position = [-122.37066, 37.81812];
+export const TREASURE_ISLAND: Position = [-122.37066, 37.81812];
+// Civic Center to Oakland, which has an alternative route.
+const CIVIC_CENTER: Position = [-122.4194, 37.7749];
+const OAKLAND: Position = [-122.2711, 37.8044];
 
 export default function RNNavigationViewScreen({
   origin,
@@ -20,6 +27,9 @@ export default function RNNavigationViewScreen({
 }) {
   const [waypoints, setWaypoints] = useState<Waypoint[]>();
   const [simulate, setSimulate] = useState(true);
+  const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>();
+  const [appearance, setAppearance] =
+    useState<RNNavigationViewAppearance>('auto');
 
   if (!waypoints) {
     return (
@@ -32,6 +42,30 @@ export default function RNNavigationViewScreen({
           label={simulate ? 'Simulated location' : 'Device location'}
           onPress={() => setSimulate(!simulate)}
           testID="rn-screen-simulate"
+        />
+        <Button
+          label={`Units: ${distanceUnit ?? 'device'}`}
+          onPress={() =>
+            setDistanceUnit(
+              distanceUnit === undefined
+                ? 'metric'
+                : distanceUnit === 'metric'
+                  ? 'imperial'
+                  : undefined
+            )
+          }
+          testID="rn-screen-units"
+        />
+        <Button
+          label={`Appearance: ${appearance}`}
+          onPress={() =>
+            setAppearance(
+              APPEARANCES[
+                (APPEARANCES.indexOf(appearance) + 1) % APPEARANCES.length
+              ]!
+            )
+          }
+          testID="rn-screen-appearance"
         />
         <Button
           label="Ferry Building"
@@ -53,6 +87,16 @@ export default function RNNavigationViewScreen({
           }
           testID="rn-screen-treasure-island"
         />
+        <Button
+          label="Civic Center to Oakland"
+          onPress={() =>
+            setWaypoints([
+              CIVIC_CENTER,
+              { coordinate: OAKLAND, name: 'Oakland' },
+            ])
+          }
+          testID="rn-screen-oakland"
+        />
         <Button label="Back" onPress={onClose} testID="rn-screen-back" />
       </View>
     );
@@ -65,6 +109,8 @@ export default function RNNavigationViewScreen({
         testID="rn-navigation-view"
         waypoints={waypoints}
         simulate={simulate}
+        distanceUnit={distanceUnit}
+        appearance={appearance}
         onCancel={onClose}
         onError={(error) => console.warn('RNNavigationView', error)}
       />
