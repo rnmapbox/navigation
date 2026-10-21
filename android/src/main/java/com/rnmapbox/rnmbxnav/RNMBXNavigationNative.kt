@@ -10,4 +10,6 @@ internal object RNMBXNavigationNative {
   @JvmStatic external fun resolve(callback: Long)
 
   @JvmStatic external fun reject(callback: Long, code: String, message: String)
+
+  @JvmStatic external fun findRoute(id: Double): RNMBXNavigationRoute?
 }

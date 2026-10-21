@@ -9,7 +9,6 @@ public final class RNMBXNavigation: NSObject {
   @objc public var onRouteProgress: (([String: Any]) -> Void)?
   @objc public var onCameraStateChange: (([String: Any]) -> Void)?
 
-  @MainActor private var guidanceRoute: RNMBXNavigationRoute?
   @MainActor private var progressSubscription: AnyCancellable?
   @MainActor private var cameraStateSubscription: AnyCancellable?
 
@@ -28,6 +27,11 @@ public final class RNMBXNavigation: NSObject {
           self.cameraStateLock.withLock { self._cameraState = state }
           self.onCameraStateChange?(["state": state])
         }
+      self.progressSubscription = RNMBXNavigationSession.shared.$routeProgress
+        .compactMap { $0 }
+        .sink { [weak self] progress in
+          self?.onRouteProgress?(Self.progressEvent(progress))
+        }
     }
   }
 
@@ -44,7 +48,8 @@ public final class RNMBXNavigation: NSObject {
   @objc public func invalidate() {
     Task { @MainActor in
       self.cameraStateSubscription = nil
-      self.stopNavigationOnMain()
+      self.progressSubscription = nil
+      RNMBXNavigationSession.shared.stop()
     }
   }
 
@@ -109,7 +114,6 @@ public final class RNMBXNavigation: NSObject {
     }
   }
 
-  /// Guidance keeps `route` until `stopNavigation`, whether or not JS releases its `Route`.
   @objc public func startActiveGuidance(
     _ route: RNMBXNavigationRoute,
     simulate: Bool,
@@ -119,14 +123,10 @@ public final class RNMBXNavigation: NSObject {
     Task { @MainActor in
       do {
         let session = RNMBXNavigationSession.shared
-        let navigation = try session.mapboxNavigation()
-        session.setLocationSource(simulate ? .simulation(initialLocation: nil) : .live)
-        self.progressSubscription = session.$routeProgress
-          .compactMap { $0 }
-          .sink { [weak self] progress in
-            self?.onRouteProgress?(Self.progressEvent(progress))
-          }
-        self.guidanceRoute = route
+        guard let navigation = try await session.prepareActiveGuidance(route, simulate: simulate) else {
+          resolve()
+          return
+        }
         navigation.tripSession().startActiveGuidance(with: route.routes, startLegIndex: 0)
         session.cameraState = .following
         resolve()
@@ -145,7 +145,7 @@ public final class RNMBXNavigation: NSObject {
 
   @objc public func stopNavigation() {
     Task { @MainActor in
-      self.stopNavigationOnMain()
+      RNMBXNavigationSession.shared.stop()
     }
   }
 
@@ -172,13 +172,7 @@ public final class RNMBXNavigation: NSObject {
     }
   }
 
-  @MainActor private func stopNavigationOnMain() {
-    progressSubscription = nil
-    guidanceRoute = nil
-    RNMBXNavigationSession.shared.stop()
-  }
-
-  private static func progressEvent(_ progress: RouteProgress) -> [String: Any] {
+  static func progressEvent(_ progress: RouteProgress) -> [String: Any] {
     let stepProgress = progress.currentLegProgress.currentStepProgress
     let banner = stepProgress.currentVisualInstruction?.primaryInstruction
     let upcomingStep = progress.currentLegProgress.upcomingStep

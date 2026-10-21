@@ -17,8 +17,10 @@ final class RNMBXNavigationSession {
   /// Fires when navigation stops, so adopted maps can reset their camera.
   let stopped = PassthroughSubject<Void, Never>()
 
-  private var provider: MapboxNavigationProvider?
+  private(set) var provider: MapboxNavigationProvider?
   private var subscriptions = Set<AnyCancellable>()
+  /// Kept until navigation stops, whether or not JS releases its `Route`.
+  private var guidanceRoute: RNMBXNavigationRoute?
 
   var accessToken: String?
 
@@ -49,15 +51,33 @@ final class RNMBXNavigationSession {
     return provider.mapboxNavigation
   }
 
-  func setLocationSource(_ source: LocationSource) {
-    guard let provider, provider.coreConfig.locationSource != source else { return }
+  /// Applying the config replaces the location client and the speech synthesizer on a later main actor turn.
+  func setLocationSource(_ source: LocationSource, force: Bool = false) {
+    guard let provider, force || provider.coreConfig.locationSource != source else { return }
     var config = provider.coreConfig
     config.locationSource = source
     provider.apply(coreConfig: config)
   }
 
+  /// Nil if guidance stopped or restarted meanwhile.
+  func prepareActiveGuidance(_ route: RNMBXNavigationRoute, simulate: Bool) async throws -> MapboxNavigation? {
+    let navigation = try mapboxNavigation()
+    // Without the origin, the new simulation starts from progress matched against the previous simulation's location.
+    let origin = route.routes.mainRoute.route.shape?.coordinates.first.map {
+      CLLocation(latitude: $0.latitude, longitude: $0.longitude)
+    }
+    setLocationSource(simulate ? .simulation(initialLocation: origin) : .live, force: simulate)
+    guidanceRoute = route
+    // `apply(coreConfig:)` swaps the location client two main actor turns later; guidance started before that is
+    // matched against the previous client's location.
+    await Task.yield()
+    await Task.yield()
+    return guidanceRoute === route ? navigation : nil
+  }
+
   func stop() {
     provider?.mapboxNavigation.tripSession().setToIdle()
+    guidanceRoute = nil
     previewRoutes = nil
     cameraState = .idle
     location = nil

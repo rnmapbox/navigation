@@ -97,6 +97,9 @@ dependencies {
   implementation "com.facebook.react:react-android"
   implementation "com.mapbox.navigationcore:navigation${ndkSuffix}:${mapboxNavigationVersion}"
   implementation "com.mapbox.navigationcore:ui-maps${ndkSuffix}:${mapboxNavigationVersion}"
+  implementation "com.mapbox.navigationcore:ui-components${ndkSuffix}:${mapboxNavigationVersion}"
+  // The ui-components views extend ConstraintLayout, which they only declare as a runtime dependency.
+  implementation "androidx.constraintlayout:constraintlayout:1.1.3"
   // RNMBXNavigationMapFactory registers with @rnmapbox/maps' RNMBXMapViewFactory.
   implementation project(":rnmapbox_maps")
 

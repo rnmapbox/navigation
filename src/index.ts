@@ -24,6 +24,12 @@ export type {
   Waypoint,
 } from './Route';
 export {
+  NavigationView,
+  type ArriveEvent,
+  type NavigationViewError,
+  type NavigationViewProps,
+} from './NavigationView';
+export {
   NavigationViewport,
   type NavigationViewportProps,
   type ViewportPadding,

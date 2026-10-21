@@ -25,6 +25,7 @@ import Navigation, {
 import type { FeatureCollection } from 'geojson';
 
 import env from '../env.json';
+import NavigationViewScreen from './NavigationViewScreen';
 import RouteLifecycleScreen from './RouteLifecycleScreen';
 
 // Mapbox HQ (San Francisco) to the Ferry Building.
@@ -64,18 +65,36 @@ function formatDuration(seconds: number) {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<'navigation' | 'routes'>('navigation');
-  return screen === 'navigation' ? (
-    <NavigationScreen onOpenRouteLifecycle={() => setScreen('routes')} />
-  ) : (
-    <RouteLifecycleScreen onClose={() => setScreen('navigation')} />
-  );
+  const [screen, setScreen] = useState<
+    'navigation' | 'routes' | 'navigationView'
+  >('navigation');
+  switch (screen) {
+    case 'navigation':
+      return (
+        <NavigationScreen
+          onOpenRouteLifecycle={() => setScreen('routes')}
+          onOpenNavigationView={() => setScreen('navigationView')}
+        />
+      );
+    case 'routes':
+      return <RouteLifecycleScreen onClose={() => setScreen('navigation')} />;
+    case 'navigationView':
+      return (
+        <NavigationViewScreen
+          origin={ORIGIN}
+          destination={DESTINATION}
+          onClose={() => setScreen('navigation')}
+        />
+      );
+  }
 }
 
 function NavigationScreen({
   onOpenRouteLifecycle,
+  onOpenNavigationView,
 }: {
   onOpenRouteLifecycle: () => void;
+  onOpenNavigationView: () => void;
 }) {
   const [route, setRoute] = useState<Route>();
   const [progress, setProgress] = useState<RouteProgressEvent>();
@@ -226,6 +245,11 @@ function NavigationScreen({
               label="Route lifecycle"
               onPress={onOpenRouteLifecycle}
               testID="open-route-lifecycle"
+            />
+            <Chip
+              label="NavigationView"
+              onPress={onOpenNavigationView}
+              testID="open-navigation-view"
             />
           </>
         ) : (

@@ -178,14 +178,53 @@ RouteStats &routeStats()
   return stats;
 }
 
+namespace {
+
+struct RouteRegistry {
+  std::mutex mutex;
+  double nextId = 1;
+  std::unordered_map<double, RouteHostObject *> routes;
+};
+
+RouteRegistry &routeRegistry()
+{
+  static RouteRegistry registry;
+  return registry;
+}
+
+double registerRoute(RouteHostObject *route)
+{
+  auto &registry = routeRegistry();
+  std::lock_guard lock(registry.mutex);
+  auto id = registry.nextId++;
+  registry.routes.emplace(id, route);
+  return id;
+}
+
+} // namespace
+
+std::shared_ptr<NativeRoute> findRoute(double id)
+{
+  auto &registry = routeRegistry();
+  std::lock_guard lock(registry.mutex);
+  auto it = registry.routes.find(id);
+  return it == registry.routes.end() ? nullptr : it->second->native();
+}
+
 RouteHostObject::RouteHostObject(RouteData data, std::shared_ptr<NativeRoute> native)
     : data_(std::move(data)), native_(std::move(native))
 {
+  id_ = registerRoute(this);
   routeStats().live++;
 }
 
 RouteHostObject::~RouteHostObject()
 {
+  {
+    auto &registry = routeRegistry();
+    std::lock_guard lock(registry.mutex);
+    registry.routes.erase(id_);
+  }
   if (native_) {
     native_.reset();
     routeStats().live--;
@@ -366,6 +405,19 @@ void install(
         }
         bindings->platform().previewRoute(native);
         return jsi::Value::undefined();
+      });
+
+  setFunction(
+      runtime,
+      routes,
+      "getRouteId",
+      1,
+      [](jsi::Runtime &runtime, const jsi::Value &, const jsi::Value *args, size_t count) -> jsi::Value {
+        auto route = unwrapRoute(runtime, argument(args, count, 0));
+        if (!route->native()) {
+          throwReleased(runtime);
+        }
+        return route->id();
       });
 
   setFunction(

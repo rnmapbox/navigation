@@ -2,7 +2,7 @@
 #  $RNMapboxNavigationVersion = '3.23.1' - Navigation SDK version, defaults to package.json `mapboxNavigation.ios`.
 #     Nav 3.N pins Mapbox Maps 11.N exactly.
 #  $RNMapboxNavigationSwiftPackageManager = "manual" - don't add the Swift package; you add
-#     mapbox-navigation-ios (product MapboxNavigationCore) yourself.
+#     mapbox-navigation-ios (products MapboxNavigationCore and MapboxNavigationUIKit) yourself.
 #
 # This pod links the Navigation SDK and, through it, MapboxMaps. @rnmapbox/maps must only compile against that
 # MapboxMaps, or the app links two copies:
@@ -40,7 +40,7 @@ Pod::Spec.new do |s|
     spm_dependency(s,
       url: 'https://github.com/mapbox/mapbox-navigation-ios.git',
       requirement: { kind: 'exactVersion', version: $RNMapboxNavigationVersion || package['mapboxNavigation']['ios'] },
-      products: ['MapboxNavigationCore']
+      products: ['MapboxNavigationCore', 'MapboxNavigationUIKit']
     )
     RNMapboxSPM.embed_frameworks(s.name, ['MapboxCommon', 'MapboxCoreMaps', 'MapboxNavigationNative', 'Turf'])
     s.script_phase = RNMapboxSPM.signature_cleanup_script_phase(s.name)

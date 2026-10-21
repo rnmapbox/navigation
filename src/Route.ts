@@ -77,6 +77,8 @@ type RouteBindings = {
   ): Promise<RouteResponse>;
   startActiveGuidance(route: Route, simulate: boolean): Promise<void>;
   previewRoute(route: Route | null): void;
+  /** Native views can't receive host objects as props, so `<NavigationView>` passes this id instead. */
+  getRouteId(route: Route): number;
   getRouteStats(): RouteStats;
 };
 

@@ -4,72 +4,27 @@ import com.facebook.proguard.annotations.DoNotStrip
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.UiThreadUtil
+import com.facebook.react.bridge.WritableMap
 import com.facebook.react.turbomodule.core.interfaces.BindingsInstallerHolder
 import com.facebook.react.turbomodule.core.interfaces.TurboModuleWithJSIBindings
 import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.common.MapboxOptions
-import com.mapbox.common.location.Location
 import com.mapbox.geojson.Point
-import com.mapbox.navigation.base.ExperimentalPreviewMapboxNavigationAPI
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
-import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.route.NavigationRoute
 import com.mapbox.navigation.base.route.NavigationRouterCallback
 import com.mapbox.navigation.base.route.RouterFailure
-import com.mapbox.navigation.core.MapboxNavigation
-import com.mapbox.navigation.core.MapboxNavigationProvider
-import com.mapbox.navigation.core.replay.route.ReplayRouteMapper
-import com.mapbox.navigation.core.directions.session.RoutesObserver
-import com.mapbox.navigation.core.trip.session.LocationMatcherResult
-import com.mapbox.navigation.core.trip.session.LocationObserver
-import com.mapbox.navigation.core.trip.session.RouteProgressObserver
+import com.mapbox.navigation.base.trip.model.RouteProgress
 
 class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
   NativeRNMBXNavigationModuleSpec(reactContext), TurboModuleWithJSIBindings {
-
-  /** Guidance keeps its route until `stopNavigation`, whether or not JS releases its `Route`. */
-  private var guidanceRoute: RNMBXNavigationRoute? = null
-  private var simulating = false
-
-  private val routeProgressObserver = RouteProgressObserver { progress ->
-    RNMBXNavigationSession.updateRouteProgress(progress)
-    val stepProgress = progress.currentLegProgress?.currentStepProgress
-    val banner = progress.bannerInstructions?.primary()
-    val upcomingManeuver = progress.currentLegProgress?.upcomingStep?.maneuver()
-    emitOnRouteProgress(
-      Arguments.createMap().apply {
-        putDouble("distanceRemaining", progress.distanceRemaining.toDouble())
-        putDouble("distanceTraveled", progress.distanceTraveled.toDouble())
-        putDouble("durationRemaining", progress.durationRemaining)
-        putDouble("fractionTraveled", progress.fractionTraveled.toDouble())
-        putDouble("stepDistanceRemaining", stepProgress?.distanceRemaining?.toDouble() ?: 0.0)
-        putString("maneuverInstruction", banner?.text() ?: upcomingManeuver?.instruction() ?: "")
-        putString("maneuverType", banner?.type() ?: upcomingManeuver?.type() ?: "")
-        putString("maneuverModifier", banner?.modifier() ?: upcomingManeuver?.modifier() ?: "")
-      }
-    )
-  }
-
-  private val locationObserver = object : LocationObserver {
-    override fun onNewRawLocation(rawLocation: Location) = Unit
-
-    override fun onNewLocationMatcherResult(locationMatcherResult: LocationMatcherResult) {
-      RNMBXNavigationSession.updateLocation(
-        locationMatcherResult.enhancedLocation,
-        locationMatcherResult.keyPoints
-      )
-    }
-  }
-
-  private val routesObserver = RoutesObserver { result ->
-    RNMBXNavigationSession.updateRoutes(result.navigationRoutes, preview = false)
-  }
 
   init {
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = { state ->
         emitOnCameraStateChange(Arguments.createMap().apply { putString("state", state.jsName) })
       }
+      RNMBXNavigationSession.routeProgressObserver = { progress -> emitOnRouteProgress(routeProgressEvent(progress)) }
     }
   }
 
@@ -112,7 +67,7 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
       .build()
 
     UiThreadUtil.runOnUiThread {
-      val navigation = mapboxNavigation()
+      val navigation = RNMBXNavigationSession.mapboxNavigation(reactApplicationContext)
       if (navigation == null) {
         RNMBXNavigationNative.reject(callback, "no_access_token", "Call Navigation.setAccessToken before using navigation")
         return@runOnUiThread
@@ -142,33 +97,15 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
   }
 
   @DoNotStrip
-  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
   fun startActiveGuidanceFromJS(route: RNMBXNavigationRoute, simulate: Boolean, callback: Long) {
     UiThreadUtil.runOnUiThread {
-      val navigation = mapboxNavigation()
+      val navigation = RNMBXNavigationSession.mapboxNavigation(reactApplicationContext)
       if (navigation == null) {
         RNMBXNavigationNative.reject(callback, "no_access_token", "Call Navigation.setAccessToken before using navigation")
         return@runOnUiThread
       }
       try {
-        registerObservers(navigation)
-        guidanceRoute = route
-        navigation.setNavigationRoutes(route.routes)
-        if (simulate) {
-          // No foreground service: it needs runtime location permission, which simulation doesn't.
-          navigation.startReplayTripSession(withForegroundService = false)
-          navigation.mapboxReplayer.run {
-            stop()
-            clearEvents()
-            pushEvents(ReplayRouteMapper().mapDirectionsRouteGeometry(route.routes.first().directionsRoute))
-            seekTo(0.0)
-            play()
-          }
-        } else {
-          navigation.startTripSession()
-        }
-        simulating = simulate
-        RNMBXNavigationSession.updateCameraState(RNMBXNavigationCameraState.FOLLOWING)
+        RNMBXNavigationSession.startActiveGuidance(navigation, route, simulate)
         RNMBXNavigationNative.resolve(callback)
       } catch (e: SecurityException) {
         RNMBXNavigationNative.reject(callback, "start_failed", e.message ?: e.toString())
@@ -185,7 +122,7 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
   }
 
   override fun stopNavigation() {
-    UiThreadUtil.runOnUiThread { stopNavigationOnMain() }
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.stopNavigation() }
   }
 
   override fun setCameraState(state: String) {
@@ -201,50 +138,10 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
   override fun invalidate() {
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = null
-      stopNavigationOnMain()
+      RNMBXNavigationSession.routeProgressObserver = null
+      RNMBXNavigationSession.stopNavigation()
     }
     super.invalidate()
-  }
-
-  private fun registerObservers(navigation: MapboxNavigation) {
-    unregisterObservers(navigation)
-    navigation.registerRouteProgressObserver(routeProgressObserver)
-    navigation.registerLocationObserver(locationObserver)
-    navigation.registerRoutesObserver(routesObserver)
-  }
-
-  private fun unregisterObservers(navigation: MapboxNavigation) {
-    navigation.unregisterRouteProgressObserver(routeProgressObserver)
-    navigation.unregisterLocationObserver(locationObserver)
-    navigation.unregisterRoutesObserver(routesObserver)
-  }
-
-  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
-  private fun stopNavigationOnMain() {
-    guidanceRoute = null
-    if (MapboxNavigationProvider.isCreated()) {
-      val navigation = MapboxNavigationProvider.retrieve()
-      unregisterObservers(navigation)
-      if (simulating) {
-        navigation.mapboxReplayer.stop()
-        navigation.mapboxReplayer.clearEvents()
-        simulating = false
-      }
-      navigation.setNavigationRoutes(emptyList())
-      navigation.stopTripSession()
-    }
-    RNMBXNavigationSession.stop()
-  }
-
-  /** The SDK allows one `MapboxNavigation` per process; it outlives JS reloads. */
-  private fun mapboxNavigation(): MapboxNavigation? {
-    if (MapboxNavigationProvider.isCreated()) {
-      return MapboxNavigationProvider.retrieve()
-    }
-    if (MapboxOptions.accessToken.isEmpty()) {
-      return null
-    }
-    return MapboxNavigationProvider.create(NavigationOptions.Builder(reactApplicationContext).build())
   }
 
   companion object {
@@ -253,5 +150,21 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
     init {
       System.loadLibrary("rnmbxnav")
     }
+  }
+}
+
+fun routeProgressEvent(progress: RouteProgress): WritableMap {
+  val stepProgress = progress.currentLegProgress?.currentStepProgress
+  val banner = progress.bannerInstructions?.primary()
+  val upcomingManeuver = progress.currentLegProgress?.upcomingStep?.maneuver()
+  return Arguments.createMap().apply {
+    putDouble("distanceRemaining", progress.distanceRemaining.toDouble())
+    putDouble("distanceTraveled", progress.distanceTraveled.toDouble())
+    putDouble("durationRemaining", progress.durationRemaining)
+    putDouble("fractionTraveled", progress.fractionTraveled.toDouble())
+    putDouble("stepDistanceRemaining", stepProgress?.distanceRemaining?.toDouble() ?: 0.0)
+    putString("maneuverInstruction", banner?.text() ?: upcomingManeuver?.instruction() ?: "")
+    putString("maneuverType", banner?.type() ?: upcomingManeuver?.type() ?: "")
+    putString("maneuverModifier", banner?.modifier() ?: upcomingManeuver?.modifier() ?: "")
   }
 }

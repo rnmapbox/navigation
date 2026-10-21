@@ -132,6 +132,11 @@ class IOSNavigationPlatform : public NavigationPlatform {
 
 } // namespace
 
+RNMBXNavigationRoute *findPlatformRoute(double id)
+{
+  return unwrap(findRoute(id));
+}
+
 std::shared_ptr<NavigationPlatform> makeNavigationPlatform(RNMBXNavigation *navigation)
 {
   return std::make_shared<IOSNavigationPlatform>(navigation);
