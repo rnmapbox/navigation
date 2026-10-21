@@ -27,6 +27,11 @@ export function maneuverGlyph(type: string, modifier: string): string {
   }
 }
 
+/**
+ * Unit of the distances navigation UIs show and voice instructions use.
+ *
+ * @group Navigation
+ */
 export type DistanceUnit = 'metric' | 'imperial';
 
 export function formatDistance(

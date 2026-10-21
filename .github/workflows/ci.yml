@@ -37,6 +37,9 @@ jobs:
       - name: Unit tests
         run: yarn test --maxWorkers=2
 
+      - name: API reference
+        run: yarn docs
+
 
   build-library:
     runs-on: ubuntu-latest

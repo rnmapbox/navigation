@@ -1,0 +1,73 @@
+name: Update docs in maps-docs
+
+# Publishes the API reference of what's on npm, so it runs on releases rather than on pushes to main.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag, branch or SHA to generate the docs from
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+
+    env:
+      REF: ${{ github.event.release.tag_name || inputs.ref }}
+
+    steps:
+      - name: Checkout navigation
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ env.REF }}
+          path: navigation
+
+      - name: Checkout maps-docs
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          repository: rnmapbox/maps-docs
+          ssh-key: ${{ secrets.MAPS_DOCS_DEPLOY_KEY }}
+          path: maps-docs
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: navigation/.nvmrc
+
+      - name: Install dependencies
+        working-directory: navigation
+        run: yarn install --immutable
+
+      - name: Generate API reference
+        working-directory: navigation
+        run: yarn docs --out ../maps-docs/docs/navigation/api --gitRevision "$REF"
+
+      - name: Commit and push to maps-docs
+        working-directory: maps-docs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/navigation/api
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Update navigation docs from rnmapbox/navigation@${REF}"
+          for i in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in $((i * 10))s..."
+            sleep $((i * 10))
+          done
+          echo "All push attempts failed"
+          exit 1

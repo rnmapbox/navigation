@@ -14,32 +14,56 @@ import {
   type Waypoint,
 } from './Route';
 
+/**
+ * Passed to `onError` of {@link NavigationView} and {@link RNNavigationView}.
+ *
+ * @group Components
+ */
 export type NavigationViewError = {
   /** E.g. `route_request_failed`, `route_released`, `start_failed`. */
   code: string;
+  /** Human-readable, from the SDK where it has one. */
   message: string;
 };
 
+/**
+ * Props of {@link NavigationView}. Pass either `route` or `waypoints`.
+ *
+ * @group Components
+ */
 export type NavigationViewProps = {
   style?: StyleProp<ViewStyle>;
   testID?: string;
   /** Route from `requestRoutes`. Keep it unreleased while it's passed to the view. */
   route?: Route;
-  /** Used when `route` isn't set: the view requests a route through them, origin first. */
+  /**
+   * Used when `route` isn't set: the view requests a route through them, origin first, with alternatives, and
+   * releases it on unmount.
+   */
   waypoints?: Waypoint[];
   /** Drive the route with simulated locations. Read when guidance starts. */
   simulate?: boolean;
   /** Mutes voice instructions. The view's own mute button also toggles them. */
   mute?: boolean;
+  /** Same event as {@link Navigation.addRouteProgressListener}. */
   onRouteProgress?: (event: RouteProgressEvent) => void;
+  /** Same event as {@link Navigation.addArriveListener}. */
   onArrive?: (event: ArriveEvent) => void;
-  /** The user ended the trip; guidance has stopped. */
+  /** The user ended the trip; guidance has stopped. Unmount the view. */
   onCancel?: () => void;
+  /** The route request or the start of guidance failed. */
   onError?: (error: NavigationViewError) => void;
 };
 
 /**
- * Full-screen turn-by-turn navigation UI. Mounting it starts guidance along its route, replacing any active guidance.
+ * Full-screen turn-by-turn navigation UI: `NavigationViewController` from `MapboxNavigationUIKit` on iOS, and an
+ * equivalent built from the Navigation SDK UI components on Android.
+ *
+ * It uses the app's single navigation session: mounting it, or giving it a new route, starts guidance along that route,
+ * replacing any active guidance, and unmounting it or the user ending the trip stops guidance. Show one at a time.
+ *
+ * @param props See {@link NavigationViewProps}.
+ * @group Components
  */
 export function NavigationView({
   route,

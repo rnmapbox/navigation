@@ -36,18 +36,27 @@ import {
   type DistanceUnit,
 } from './guidance';
 
-/** `auto` switches between `day` and `night` at sunrise and sunset at the user's location. */
+/**
+ * `auto` switches between `day` and `night` at sunrise and sunset at the user's location.
+ *
+ * @group Components
+ */
 export type RNNavigationViewAppearance = 'auto' | 'day' | 'night';
 
+/**
+ * Props of {@link RNNavigationView}: {@link NavigationViewProps}, plus the props below.
+ *
+ * @group Components
+ */
 export type RNNavigationViewProps = NavigationViewProps & {
-  /** Defaults to Mapbox Standard, whose light preset follows `appearance`. */
+  /** Defaults to Mapbox Standard, whose light preset follows `appearance`. With another style it only changes the UI. */
   styleURL?: string;
   /**
    * Unit of the distances the view shows, and of voice instructions for a route the view requests through
    * `waypoints`. Defaults to {@link Navigation.getDefaultDistanceUnit}.
    */
   distanceUnit?: DistanceUnit;
-  /** Defaults to `auto`. */
+  /** Colors of the UI and the Standard style's light preset. Defaults to `auto`. */
   appearance?: RNNavigationViewAppearance;
   /** Rendered inside the `MapView`, e.g. extra sources and layers. */
   children?: ReactNode;
@@ -56,7 +65,16 @@ export type RNNavigationViewProps = NavigationViewProps & {
 const MARGIN = 12;
 
 /**
- * `<NavigationView>` built in React Native from the headless API, on an `@rnmapbox/maps` navigation map.
+ * `<NavigationView>` built in React Native from the headless API, on an `@rnmapbox/maps` navigation map: a maneuver
+ * banner with road shields, exit numbers and lanes, speed limit, road name, trip progress, mute, overview/recenter and
+ * end buttons, and an arrival card. Navigation maps draw the alternative routes of its guidance; tapping one switches
+ * to it.
+ *
+ * It uses the app's single navigation session like `<NavigationView>`. Use it as is, or copy it as a starting point
+ * for your own UI.
+ *
+ * @param props See {@link RNNavigationViewProps}.
+ * @group Components
  */
 export function RNNavigationView({
   route,

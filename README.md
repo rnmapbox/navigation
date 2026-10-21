@@ -4,12 +4,14 @@ _A community-supported, open-source React Native library for the [Mapbox Navigat
 
 It requests routes, runs an active-guidance session and reports route progress, and the Navigation SDK draws the route line, the puck and the navigation camera on a regular `@rnmapbox/maps` `MapView`. `<NavigationView>` shows the SDK's full-screen turn-by-turn UI instead.
 
-> Status: early alpha, not published to npm yet. APIs may change.
+> Status: early alpha, published to npm under the `next` tag. APIs may change between releases.
+
+API reference: [rnmapbox.github.io/docs/navigation/api](https://rnmapbox.github.io/docs/navigation/api).
 
 ## Requirements
 
 - React Native 0.79+ with the New Architecture.
-- [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) >= 10.3.11 (peer dependency).
+- [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) >= 10.3.11 (peer dependency). Navigation maps plug into its map view factory hooks (`mapViewImpl`) in the form they have since 10.3.11 ([rnmapbox/maps#4374](https://github.com/rnmapbox/maps/pull/4374), [#4375](https://github.com/rnmapbox/maps/pull/4375)); older versions don't build with it.
 - iOS: React Native's minimum deployment target (15.1 for React Native 0.84; the Navigation SDK itself needs iOS 14). Mapbox Navigation SDK for iOS 3.23.1 (`MapboxNavigationCore` and `MapboxNavigationUIKit`), added as a Swift package.
 - Android: `minSdkVersion` 24, `compileSdkVersion` 36. Mapbox Navigation SDK for Android 3.23.1 (`com.mapbox.navigationcore:navigation`, `ui-maps` and `ui-components`).
 - A [Mapbox account](https://account.mapbox.com/auth/signup/) and a public access token (`pk.…`). Neither platform needs a secret downloads token: the Android release artifacts and the iOS Swift package binaries download without one.
@@ -19,7 +21,7 @@ Navigation is billed per trip or MAU to the access token you pass, on top of Map
 ## Installation
 
 ```sh
-yarn add @rnmapbox/navigation @rnmapbox/maps
+yarn add @rnmapbox/navigation@next @rnmapbox/maps
 ```
 
 ### Expo
@@ -375,7 +377,10 @@ yarn lint
 yarn typecheck
 yarn test
 yarn prepare   # builds lib/ with react-native-builder-bob
+yarn docs      # API reference into docs/api/, see below
 ```
+
+The API reference is generated from the JSDoc in `src/` with TypeDoc and `typedoc-plugin-markdown`. On each published release, `.github/workflows/update-docs.yml` regenerates it from the release tag into `docs/navigation/api/` of [rnmapbox/maps-docs](https://github.com/rnmapbox/maps-docs).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 

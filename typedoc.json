@@ -1,0 +1,30 @@
+{
+  "$schema": "https://typedoc-plugin-markdown.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "tsconfig": "tsconfig.build.json",
+  "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown", "./scripts/typedoc-docusaurus.mjs"],
+  "treatWarningsAsErrors": true,
+  "basePath": ".",
+
+  "router": "group",
+  "groupOrder": ["Navigation", "Components", "Routes", "Events", "*"],
+  "sort": ["kind", "alphabetical-ignoring-documents"],
+  "kindSortOrder": ["Variable", "Function", "Interface", "TypeAlias"],
+  "excludeReferences": true,
+
+  "readme": "none",
+  "entryFileName": "index",
+  "hidePageHeader": true,
+  "hideBreadcrumbs": true,
+  "pageTitleTemplates": { "index": "API reference", "member": "{rawName}" },
+  "useCodeBlocks": true,
+  "expandParameters": true,
+  "sanitizeComments": true,
+  "indexFormat": "table",
+  "parametersFormat": "table",
+  "interfacePropertiesFormat": "table",
+  "typeAliasPropertiesFormat": "table",
+  "typeDeclarationFormat": "list",
+  "tableColumnSettings": { "hideSources": true }
+}
