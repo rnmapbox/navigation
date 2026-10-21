@@ -1,0 +1,29 @@
+{
+  "name": "@rnmapbox/navigation-expo-example",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild --clean",
+    "postinstall": "node ./scripts/set_access_token.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rnmapbox/maps": "10.3.11",
+    "@rnmapbox/navigation": "workspace:*",
+    "expo": "~58.0.16",
+    "expo-status-bar": "~58.0.3",
+    "react": "19.3.0",
+    "react-native": "0.88.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "babel-preset-expo": "~58.0.18",
+    "react-native-builder-bob": "^0.43.2",
+    "react-native-monorepo-config": "^0.4.0",
+    "typescript": "~6.0.3"
+  }
+}
