@@ -1,6 +1,6 @@
 {
   "name": "@rnmapbox/navigation",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Thin React Native wrapper around the Mapbox Navigation SDK v3",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
