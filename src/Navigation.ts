@@ -20,7 +20,7 @@ import {
 /**
  * Options of {@link Navigation.startActiveGuidance}.
  *
- * @group Navigation
+ * @group Core
  */
 export type StartActiveGuidanceOptions = {
   /** Drive the route with simulated locations instead of the device's location. */
@@ -31,7 +31,7 @@ export type StartActiveGuidanceOptions = {
  * Camera of navigation maps. `following` follows the puck, tilted and rotated with the route; `overview` fits the rest
  * of the route; `idle` leaves the map to the user's gestures and `@rnmapbox/maps` `Camera`.
  *
- * @group Navigation
+ * @group Core
  */
 export type CameraState = 'following' | 'overview' | 'idle';
 
@@ -45,7 +45,7 @@ function dispatchRouteChange(event: RouteChangeEvent) {
  * The headless navigation API: route requests, the app's single guidance session, and its events.
  * It's also the default export.
  *
- * @group Navigation
+ * @group Core
  */
 export const Navigation = {
   /** Must be called before any request; navigation is billed to this token. */
@@ -219,6 +219,6 @@ export const Navigation = {
  * Pass as `mapViewImpl` to an `@rnmapbox/maps` `MapView` to render the route line, the puck and the
  * navigation camera on it: `<MapView mapViewImpl={NAVIGATION_MAP_VIEW_IMPL}>`.
  *
- * @group Navigation
+ * @group Core
  */
 export const NAVIGATION_MAP_VIEW_IMPL = 'rnmbxnav';

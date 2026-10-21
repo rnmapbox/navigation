@@ -8,7 +8,7 @@
   "basePath": ".",
 
   "router": "group",
-  "groupOrder": ["Navigation", "Components", "Routes", "Events", "*"],
+  "groupOrder": ["Core", "Components", "Routes", "Events", "*"],
   "sort": ["kind", "alphabetical-ignoring-documents"],
   "kindSortOrder": ["Variable", "Function", "Interface", "TypeAlias"],
   "excludeReferences": true,

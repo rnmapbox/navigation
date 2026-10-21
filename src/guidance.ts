@@ -30,7 +30,7 @@ export function maneuverGlyph(type: string, modifier: string): string {
 /**
  * Unit of the distances navigation UIs show and voice instructions use.
  *
- * @group Navigation
+ * @group Core
  */
 export type DistanceUnit = 'metric' | 'imperial';
 
