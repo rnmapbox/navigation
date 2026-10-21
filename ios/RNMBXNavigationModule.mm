@@ -66,6 +66,11 @@
   return [RNMBXNavigation sdkVersion];
 }
 
+- (NSString *)getDefaultDistanceUnit
+{
+  return [RNMBXNavigation defaultDistanceUnit];
+}
+
 - (void)stopNavigation
 {
   [_navigation stopNavigation];

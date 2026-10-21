@@ -12,9 +12,19 @@ type RouteProgressEvent = Readonly<{
   fractionTraveled: CodegenTypes.Double;
   stepDistanceRemaining: CodegenTypes.Double;
   maneuverInstruction: string;
+  maneuverComponents: {
+    type: string;
+    text: string;
+    imageUrl: string;
+  }[];
   maneuverType: string;
   maneuverModifier: string;
   secondaryInstruction: string;
+  secondaryComponents: {
+    type: string;
+    text: string;
+    imageUrl: string;
+  }[];
   subInstruction: string;
   lanes: {
     indications: string[];

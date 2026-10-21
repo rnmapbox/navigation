@@ -76,6 +76,13 @@ public final class RNMBXNavigation: NSObject {
     Bundle.mapboxNavigationVersion
   }
 
+  @objc public static func defaultDistanceUnit() -> String {
+    if #available(iOS 16, *) {
+      return Locale.current.measurementSystem == .metric ? "metric" : "imperial"
+    }
+    return Locale.current.usesMetricSystem ? "metric" : "imperial"
+  }
+
   @objc public func setAccessToken(_ accessToken: String) {
     Task { @MainActor in
       RNMBXNavigationSession.shared.accessToken = accessToken
@@ -234,6 +241,8 @@ public final class RNMBXNavigation: NSObject {
       ]
     } ?? []
     return [
+      "maneuverComponents": bannerComponents(banner),
+      "secondaryComponents": bannerComponents(visualInstruction?.secondaryInstruction),
       "secondaryInstruction": visualInstruction?.secondaryInstruction?.text ?? "",
       "subInstruction": lanes.isEmpty ? sub?.text ?? "" : "",
       "lanes": lanes,
@@ -248,6 +257,29 @@ public final class RNMBXNavigation: NSObject {
       "maneuverType": banner?.maneuverType?.rawValue ?? upcomingStep?.maneuverType.rawValue ?? "",
       "maneuverModifier": banner?.maneuverDirection?.rawValue ?? upcomingStep?.maneuverDirection?.rawValue ?? "",
     ]
+  }
+
+  private static func bannerComponents(_ instruction: VisualInstruction?) -> [[String: Any]] {
+    instruction?.components.compactMap { component -> [String: Any]? in
+      switch component {
+      case let .text(text):
+        ["type": "text", "text": text.text, "imageUrl": ""]
+      case let .delimiter(text):
+        ["type": "delimiter", "text": text.text, "imageUrl": ""]
+      case let .exit(text):
+        ["type": "exit", "text": text.text, "imageUrl": ""]
+      case let .exitCode(text):
+        ["type": "exit-number", "text": text.text, "imageUrl": ""]
+      case let .image(image, alternativeText):
+        [
+          "type": "icon",
+          "text": alternativeText.text,
+          "imageUrl": image.imageURL(scale: 3, format: .png)?.absoluteString ?? "",
+        ]
+      case .lane, .guidanceView:
+        nil
+      }
+    } ?? []
   }
 
   static func locationEvent(_ state: MapMatchingState) -> [String: Any] {

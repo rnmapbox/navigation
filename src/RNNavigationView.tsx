@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
   type LayoutRectangle,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
-import { MapView } from '@rnmapbox/maps';
+import { MapView, StyleImport } from '@rnmapbox/maps';
 
 import {
   Navigation,
@@ -17,6 +20,7 @@ import { NavigationViewport } from './NavigationViewport';
 import { useRequestedRoute, type NavigationViewProps } from './NavigationView';
 import type { Route } from './Route';
 import type {
+  BannerComponent,
   Lane,
   LocationEvent,
   RouteProgressEvent,
@@ -27,12 +31,24 @@ import {
   formatArrival,
   formatDistance,
   formatDuration,
+  isNight,
   maneuverGlyph,
+  type DistanceUnit,
 } from './guidance';
 
+/** `auto` switches between `day` and `night` at sunrise and sunset at the user's location. */
+export type RNNavigationViewAppearance = 'auto' | 'day' | 'night';
+
 export type RNNavigationViewProps = NavigationViewProps & {
-  /** Defaults to Mapbox Standard. */
+  /** Defaults to Mapbox Standard, whose light preset follows `appearance`. */
   styleURL?: string;
+  /**
+   * Unit of the distances the view shows, and of voice instructions for a route the view requests through
+   * `waypoints`. Defaults to {@link Navigation.getDefaultDistanceUnit}.
+   */
+  distanceUnit?: DistanceUnit;
+  /** Defaults to `auto`. */
+  appearance?: RNNavigationViewAppearance;
   /** Rendered inside the `MapView`, e.g. extra sources and layers. */
   children?: ReactNode;
 };
@@ -48,6 +64,8 @@ export function RNNavigationView({
   simulate = false,
   mute = false,
   styleURL,
+  distanceUnit: distanceUnitProp,
+  appearance = 'auto',
   onRouteProgress,
   onArrive,
   onCancel,
@@ -56,7 +74,11 @@ export function RNNavigationView({
   testID,
   children,
 }: RNNavigationViewProps) {
-  const requested = useRequestedRoute(route ? undefined : waypoints, onError);
+  const distanceUnit = distanceUnitProp ?? Navigation.getDefaultDistanceUnit();
+  const requested = useRequestedRoute(route ? undefined : waypoints, onError, {
+    alternatives: true,
+    units: distanceUnit,
+  });
   const shown = route ?? requested;
 
   const [progress, setProgress] = useState<RouteProgressEvent>();
@@ -116,6 +138,15 @@ export function RNNavigationView({
 
   const following = cameraState === 'following';
   const active = progress && !ended;
+  const night =
+    appearance === 'night' ||
+    (appearance === 'auto' &&
+      location !== undefined &&
+      isNight(location.latitude, location.longitude, new Date()));
+  const colors = night ? NIGHT : DAY;
+  const destination = waypoints?.at(-1);
+  const destinationName =
+    destination && !Array.isArray(destination) ? destination.name : undefined;
 
   return (
     <View style={[styles.container, style]} testID={testID}>
@@ -126,6 +157,13 @@ export function RNNavigationView({
         scaleBarEnabled={false}
         compassEnabled={false}
       >
+        {styleURL ? null : (
+          <StyleImport
+            id="basemap"
+            existing
+            config={{ lightPreset: night ? 'night' : 'day' }}
+          />
+        )}
         <NavigationViewport padding={viewportPadding} />
         {children}
       </MapView>
@@ -133,11 +171,15 @@ export function RNNavigationView({
       {active ? (
         <>
           <View
-            style={styles.banner}
+            style={[styles.banner, { backgroundColor: colors.banner }]}
             onLayout={(event) => setBannerLayout(event.nativeEvent.layout)}
             testID="rn-navigation-banner"
           >
-            <ManeuverBanner progress={progress} offRoute={offRoute} />
+            <ManeuverBanner
+              progress={progress}
+              offRoute={offRoute}
+              distanceUnit={distanceUnit}
+            />
           </View>
 
           <View
@@ -156,12 +198,14 @@ export function RNNavigationView({
             </View>
             <View style={styles.buttons}>
               <RoundButton
+                colors={colors}
                 label={muted ? '🔇' : '🔊'}
                 onPress={() => setMuted(!muted)}
                 accessibilityLabel={muted ? 'Unmute' : 'Mute'}
                 testID="rn-navigation-mute"
               />
               <RoundButton
+                colors={colors}
                 label={following ? '⤢' : '➤'}
                 onPress={() =>
                   Navigation.setCameraState(
@@ -188,24 +232,30 @@ export function RNNavigationView({
             {location.roadName}
           </Text>
         ) : null}
-        <View style={styles.bottomBar}>
-          {arrived ? (
-            <Text style={styles.arrived} testID="rn-navigation-arrived">
-              You have arrived
-            </Text>
-          ) : (
-            <TripProgress progress={active ? progress : undefined} />
-          )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="End navigation"
-            onPress={end}
-            style={styles.endButton}
-            testID="rn-navigation-end"
-          >
-            <Text style={styles.endButtonText}>✕</Text>
-          </Pressable>
-        </View>
+        {arrived && !ended ? (
+          <Arrival
+            destinationName={destinationName}
+            colors={colors}
+            onDone={end}
+          />
+        ) : (
+          <View style={[styles.bottomBar, { backgroundColor: colors.surface }]}>
+            <TripProgress
+              progress={active ? progress : undefined}
+              distanceUnit={distanceUnit}
+              colors={colors}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="End navigation"
+              onPress={end}
+              style={[styles.endButton, { backgroundColor: colors.endButton }]}
+              testID="rn-navigation-end"
+            >
+              <Text style={styles.endButtonText}>✕</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -242,9 +292,11 @@ function useGuidance(
 function ManeuverBanner({
   progress,
   offRoute,
+  distanceUnit,
 }: {
   progress: RouteProgressEvent;
   offRoute: boolean;
+  distanceUnit: DistanceUnit;
 }) {
   if (offRoute) {
     return <Text style={styles.instruction}>Rerouting…</Text>;
@@ -257,21 +309,24 @@ function ManeuverBanner({
             {maneuverGlyph(progress.maneuverType, progress.maneuverModifier)}
           </Text>
           <Text style={styles.maneuverDistance}>
-            {formatDistance(progress.stepDistanceRemaining)}
+            {formatDistance(progress.stepDistanceRemaining, distanceUnit)}
           </Text>
         </View>
         <View style={styles.instructions}>
-          <Text
+          <Instruction
+            text={progress.maneuverInstruction}
+            components={progress.maneuverComponents}
+            modifier={progress.maneuverModifier}
             style={styles.instruction}
-            numberOfLines={2}
             testID="rn-navigation-instruction"
-          >
-            {progress.maneuverInstruction}
-          </Text>
+          />
           {progress.secondaryInstruction ? (
-            <Text style={styles.secondary} numberOfLines={1}>
-              {progress.secondaryInstruction}
-            </Text>
+            <Instruction
+              text={progress.secondaryInstruction}
+              components={progress.secondaryComponents}
+              modifier={progress.maneuverModifier}
+              style={styles.secondary}
+            />
           ) : null}
         </View>
       </View>
@@ -283,6 +338,139 @@ function ManeuverBanner({
         </Text>
       ) : null}
     </>
+  );
+}
+
+/** Draws road shields and exit numbers among the text, like the native view's banner. */
+function Instruction({
+  text,
+  components,
+  modifier,
+  style,
+  testID,
+}: {
+  text: string;
+  components: ReadonlyArray<BannerComponent>;
+  modifier: string;
+  style: StyleProp<TextStyle>;
+  testID?: string;
+}) {
+  if (
+    !components.some(({ type }) => type === 'icon' || type === 'exit-number')
+  ) {
+    return (
+      <Text style={style} numberOfLines={2} testID={testID}>
+        {text}
+      </Text>
+    );
+  }
+  return (
+    <View
+      style={styles.components}
+      accessible
+      accessibilityLabel={text}
+      testID={testID}
+    >
+      {components.map((component, index) => {
+        switch (component.type) {
+          case 'icon':
+            return (
+              <Shield
+                key={`${index}${component.imageUrl}`}
+                component={component}
+              />
+            );
+          case 'exit-number':
+            return (
+              <View key={index} style={styles.exit} testID="rn-navigation-exit">
+                <Text style={styles.exitText}>
+                  {component.text}{' '}
+                  {directionGlyph(
+                    modifier.includes('left') ? 'slight left' : 'slight right'
+                  )}
+                </Text>
+              </View>
+            );
+          case 'exit':
+            // Shown as the sign around the exit number.
+            return components[index + 1]?.type === 'exit-number' ? null : (
+              <Text key={index} style={style}>
+                {component.text}
+              </Text>
+            );
+          default:
+            return (
+              <Text key={index} style={style}>
+                {component.text}
+              </Text>
+            );
+        }
+      })}
+    </View>
+  );
+}
+
+const SHIELD_HEIGHT = 30;
+
+function Shield({ component }: { component: BannerComponent }) {
+  const [aspectRatio, setAspectRatio] = useState<number>();
+  const [failed, setFailed] = useState(false);
+
+  if (!component.imageUrl || failed) {
+    return (
+      <Text style={styles.shieldText} testID="rn-navigation-shield">
+        {component.text}
+      </Text>
+    );
+  }
+  return (
+    <Image
+      source={{ uri: component.imageUrl }}
+      style={{ height: SHIELD_HEIGHT, aspectRatio: aspectRatio ?? 1 }}
+      onLoad={({ nativeEvent: { source } }) =>
+        setAspectRatio(source.width / source.height)
+      }
+      onError={() => setFailed(true)}
+      accessibilityLabel={component.text}
+      testID="rn-navigation-shield"
+    />
+  );
+}
+
+function Arrival({
+  destinationName,
+  colors,
+  onDone,
+}: {
+  destinationName?: string;
+  colors: Colors;
+  onDone: () => void;
+}) {
+  return (
+    <View
+      style={[styles.arrivalCard, { backgroundColor: colors.surface }]}
+      testID="rn-navigation-arrived"
+    >
+      <Text style={[styles.arrivalTitle, { color: colors.text }]}>
+        You have arrived
+      </Text>
+      {destinationName ? (
+        <Text
+          style={[styles.arrivalDestination, { color: colors.secondaryText }]}
+          numberOfLines={2}
+        >
+          {destinationName}
+        </Text>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        onPress={onDone}
+        style={styles.doneButton}
+        testID="rn-navigation-done"
+      >
+        <Text style={styles.doneButtonText}>End navigation</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -315,29 +503,39 @@ function SpeedLimitSign({ limit }: { limit: SpeedLimit }) {
   );
 }
 
-function TripProgress({ progress }: { progress?: RouteProgressEvent }) {
+function TripProgress({
+  progress,
+  distanceUnit,
+  colors,
+}: {
+  progress?: RouteProgressEvent;
+  distanceUnit: DistanceUnit;
+  colors: Colors;
+}) {
   if (!progress) {
     return <View style={styles.trip} />;
   }
   return (
     <View style={styles.trip} testID="rn-navigation-trip">
-      <Text style={styles.arrival}>
+      <Text style={[styles.arrival, { color: colors.accent }]}>
         {formatArrival(progress.durationRemaining)}
       </Text>
-      <Text style={styles.remaining}>
+      <Text style={[styles.remaining, { color: colors.secondaryText }]}>
         {formatDuration(progress.durationRemaining)} ·{' '}
-        {formatDistance(progress.distanceRemaining)}
+        {formatDistance(progress.distanceRemaining, distanceUnit)}
       </Text>
     </View>
   );
 }
 
 function RoundButton({
+  colors,
   label,
   onPress,
   accessibilityLabel,
   testID,
 }: {
+  colors: Colors;
   label: string;
   onPress: () => void;
   accessibilityLabel: string;
@@ -348,13 +546,35 @@ function RoundButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
-      style={styles.roundButton}
+      style={[styles.roundButton, { backgroundColor: colors.surface }]}
       testID={testID}
     >
-      <Text style={styles.roundButtonText}>{label}</Text>
+      <Text style={[styles.roundButtonText, { color: colors.text }]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
+
+const DAY = {
+  banner: '#14532d',
+  surface: 'white',
+  text: '#111827',
+  secondaryText: '#4b5563',
+  accent: '#15803d',
+  endButton: '#fee2e2',
+};
+
+const NIGHT: Colors = {
+  banner: '#052e16',
+  surface: '#1f2937',
+  text: '#f9fafb',
+  secondaryText: '#9ca3af',
+  accent: '#4ade80',
+  endButton: '#450a0a',
+};
+
+type Colors = typeof DAY;
 
 const shadow = {
   shadowColor: '#000',
@@ -373,7 +593,6 @@ const styles = StyleSheet.create({
     right: MARGIN,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#14532d',
     ...shadow,
   },
   maneuverRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -383,6 +602,30 @@ const styles = StyleSheet.create({
   instructions: { flex: 1 },
   instruction: { color: 'white', fontSize: 20, fontWeight: '700' },
   secondary: { color: '#d1fae5', fontSize: 15, marginTop: 2 },
+  components: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 6,
+  },
+  shieldText: {
+    color: '#111827',
+    backgroundColor: 'white',
+    fontSize: 15,
+    fontWeight: '700',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  exit: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  exitText: { color: 'white', fontSize: 18, fontWeight: '700' },
   sub: {
     color: '#d1fae5',
     fontSize: 15,
@@ -414,12 +657,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow,
   },
-  roundButtonText: { fontSize: 22, color: '#111827' },
+  roundButtonText: { fontSize: 22 },
   speedLimitVienna: {
     width: 56,
     height: 56,
@@ -468,18 +710,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 34,
-    backgroundColor: 'white',
     ...shadow,
   },
   trip: { flex: 1 },
-  arrival: { fontSize: 22, fontWeight: '700', color: '#15803d' },
-  remaining: { fontSize: 15, color: '#4b5563', marginTop: 2 },
-  arrived: { flex: 1, fontSize: 20, fontWeight: '700', color: '#111827' },
+  arrival: { fontSize: 22, fontWeight: '700' },
+  remaining: { fontSize: 15, marginTop: 2 },
+  arrivalCard: {
+    alignSelf: 'stretch',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 34,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    gap: 6,
+    ...shadow,
+  },
+  arrivalTitle: { fontSize: 24, fontWeight: '700' },
+  arrivalDestination: { fontSize: 17 },
+  doneButton: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  doneButtonText: { color: 'white', fontSize: 17, fontWeight: '700' },
   endButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
   },

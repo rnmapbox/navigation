@@ -10,6 +10,7 @@ import {
   routeBindings,
   toNativeWaypoint,
   type Route,
+  type RouteRequestOptions,
   type Waypoint,
 } from './Route';
 
@@ -52,7 +53,9 @@ export function NavigationView({
   style,
   testID,
 }: NavigationViewProps) {
-  const requested = useRequestedRoute(route ? undefined : waypoints, onError);
+  const requested = useRequestedRoute(route ? undefined : waypoints, onError, {
+    alternatives: true,
+  });
   const shown = route ?? requested;
 
   return (
@@ -72,10 +75,11 @@ export function NavigationView({
 
 export function useRequestedRoute(
   waypoints: Waypoint[] | undefined,
-  onError: ((error: NavigationViewError) => void) | undefined
+  onError: ((error: NavigationViewError) => void) | undefined,
+  options: Pick<RouteRequestOptions, 'alternatives' | 'units'> = {}
 ): Route | undefined {
   const [route, setRoute] = useState<Route>();
-  const key = waypoints ? JSON.stringify(waypoints) : undefined;
+  const key = waypoints ? JSON.stringify({ waypoints, ...options }) : undefined;
   const onErrorRef = useRef(onError);
   useEffect(() => {
     onErrorRef.current = onError;
@@ -87,11 +91,17 @@ export function useRequestedRoute(
     }
     let active = true;
     let requested: Route | undefined;
+    const request = JSON.parse(key) as Pick<
+      RouteRequestOptions,
+      'waypoints' | 'alternatives' | 'units'
+    >;
     routeBindings()
       .requestRoutes({
-        waypoints: (JSON.parse(key) as Waypoint[]).map(toNativeWaypoint),
+        ...request,
+        waypoints: request.waypoints.map(toNativeWaypoint),
       })
       .then(({ main, alternatives }) => {
+        // `main` carries its alternatives to guidance.
         alternatives.forEach((alternative) => alternative.release());
         if (!active) {
           main.release();

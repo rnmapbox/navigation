@@ -119,6 +119,10 @@ extension RNMBXNavigationMapBinding: NavigationMapViewDelegate {
   func navigationMapViewUserDidStartInteraction(_ navigationMapView: NavigationMapView) {
     session.cameraState = .idle
   }
+
+  func navigationMapView(_ navigationMapView: NavigationMapView, didSelect alternativeRoute: AlternativeRoute) {
+    session.provider?.mapboxNavigation.navigation().selectAlternativeRoute(with: alternativeRoute.routeId)
+  }
 }
 
 extension RNMBXNavigationMapBinding: RNMBXCameraDelegate {

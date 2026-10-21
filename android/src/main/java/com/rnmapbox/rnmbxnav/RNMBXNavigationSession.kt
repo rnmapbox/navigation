@@ -15,6 +15,7 @@ import com.mapbox.navigation.core.arrival.ArrivalObserver
 import com.mapbox.navigation.core.directions.session.RoutesExtra
 import com.mapbox.navigation.core.directions.session.RoutesObserver
 import com.mapbox.navigation.core.replay.route.ReplayRouteMapper
+import com.mapbox.navigation.core.routealternatives.AlternativeRouteMetadata
 import com.mapbox.navigation.core.trip.session.LocationMatcherResult
 import com.mapbox.navigation.core.trip.session.LocationObserver
 import com.mapbox.navigation.core.trip.session.OffRouteObserver
@@ -226,6 +227,27 @@ object RNMBXNavigationSession {
       }
     }
   }
+
+  /** Switches guidance to [route] if it's one of its alternatives. */
+  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
+  fun selectAlternativeRoute(route: NavigationRoute) {
+    if (guidanceRoute == null || preview || routes.firstOrNull() == route || route !in routes) return
+    val navigation = MapboxNavigationProvider.retrieve()
+    // The routes observer gets this switch as a new route set, not as an alternative.
+    navigation.switchToAlternativeRoute(route) { result ->
+      if (result.isValue && navigation.getNavigationRoutes().firstOrNull() == route) {
+        routeChangeObserver?.invoke(navigation.getNavigationRoutes(), "alternative")
+      }
+    }
+  }
+
+  /** Lets the route line hide the part an alternative shares with the main route. */
+  fun alternativesMetadata(routes: List<NavigationRoute>): List<AlternativeRouteMetadata> =
+    if (guidanceRoute != null && !preview && MapboxNavigationProvider.isCreated()) {
+      MapboxNavigationProvider.retrieve().getAlternativeMetadataFor(routes)
+    } else {
+      emptyList()
+    }
 
   private fun startVoice(context: Context, route: RNMBXNavigationRoute) {
     stopVoice()

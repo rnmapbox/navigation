@@ -13,6 +13,16 @@ export type Lane = {
   activeDirection: string;
 };
 
+/** A piece of a banner instruction, see the Mapbox Directions `banner_instructions` components. */
+export type BannerComponent = {
+  /** "text", "icon" (a road shield), "delimiter", "exit" or "exit-number". */
+  type: string;
+  /** For a road shield, its route number, e.g. "I 80". */
+  text: string;
+  /** PNG of the road shield. Empty if none. */
+  imageUrl: string;
+};
+
 export type RouteProgressEvent = {
   /** Meters. */
   distanceRemaining: number;
@@ -26,12 +36,16 @@ export type RouteProgressEvent = {
   stepDistanceRemaining: number;
   /** Primary banner text of the next maneuver, e.g. "Turn right onto Market Street". */
   maneuverInstruction: string;
+  /** `maneuverInstruction` in pieces, for drawing road shields and exit numbers. */
+  maneuverComponents: ReadonlyArray<BannerComponent>;
   /** Mapbox Directions maneuver type, e.g. "turn", "arrive". Empty if unknown. */
   maneuverType: string;
   /** Mapbox Directions maneuver modifier, e.g. "right", "slight left". Empty if unknown. */
   maneuverModifier: string;
   /** Secondary banner text, e.g. the destination of an exit. Empty if none. */
   secondaryInstruction: string;
+  /** `secondaryInstruction` in pieces. Empty if none. */
+  secondaryComponents: ReadonlyArray<BannerComponent>;
   /** Sub banner text, e.g. "Then turn left". Empty if none or if the sub banner shows lanes. */
   subInstruction: string;
   /** Lanes at the next maneuver, left to right. Empty if the route has no lane data there. */
@@ -89,6 +103,8 @@ export type CameraStateEvent = {
 export interface Spec extends TurboModule {
   setAccessToken(accessToken: string): void;
   getSdkVersion(): string;
+  /** "metric" or "imperial". */
+  getDefaultDistanceUnit(): string;
   stopNavigation(): void;
   /** One of "following", "overview", "idle". */
   setCameraState(state: string): void;

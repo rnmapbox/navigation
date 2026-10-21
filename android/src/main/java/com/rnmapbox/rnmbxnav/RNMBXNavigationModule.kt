@@ -4,6 +4,7 @@ import com.facebook.proguard.annotations.DoNotStrip
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.UiThreadUtil
+import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.turbomodule.core.interfaces.BindingsInstallerHolder
 import com.facebook.react.turbomodule.core.interfaces.TurboModuleWithJSIBindings
@@ -12,6 +13,8 @@ import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.common.MapboxOptions
 import com.mapbox.geojson.Point
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
+import com.mapbox.navigation.base.formatter.DistanceFormatterOptions
+import com.mapbox.navigation.base.formatter.UnitType
 import com.mapbox.navigation.base.route.NavigationRoute
 import com.mapbox.navigation.base.route.NavigationRouterCallback
 import com.mapbox.navigation.base.route.RouterFailure
@@ -60,6 +63,12 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
   }
 
   override fun getSdkVersion(): String = com.mapbox.navigation.core.BuildConfig.MAPBOX_NAVIGATION_VERSION_NAME
+
+  override fun getDefaultDistanceUnit(): String =
+    when (DistanceFormatterOptions.Builder(reactApplicationContext).build().unitType) {
+      UnitType.IMPERIAL -> "imperial"
+      UnitType.METRIC -> "metric"
+    }
 
   @DoNotStrip
   external override fun getBindingsInstaller(): BindingsInstallerHolder
@@ -199,6 +208,8 @@ fun routeProgressEvent(progress: RouteProgress): WritableMap {
   val sub = progress.bannerInstructions?.sub()
   val lanes = sub?.components().orEmpty().filter { it.type() == BannerComponents.LANE }
   return Arguments.createMap().apply {
+    putArray("maneuverComponents", bannerComponents(banner?.components()))
+    putArray("secondaryComponents", bannerComponents(progress.bannerInstructions?.secondary()?.components()))
     putString("secondaryInstruction", progress.bannerInstructions?.secondary()?.text() ?: "")
     putString("subInstruction", if (lanes.isEmpty()) sub?.text() ?: "" else "")
     putArray("lanes", Arguments.createArray().apply {
@@ -223,6 +234,26 @@ fun routeProgressEvent(progress: RouteProgress): WritableMap {
     putString("maneuverModifier", banner?.modifier() ?: upcomingManeuver?.modifier() ?: "")
   }
 }
+
+private val BANNER_COMPONENT_TYPES = setOf(
+  BannerComponents.TEXT,
+  BannerComponents.ICON,
+  BannerComponents.DELIMITER,
+  BannerComponents.EXIT,
+  BannerComponents.EXIT_NUMBER,
+)
+
+private fun bannerComponents(components: List<BannerComponents>?): WritableArray =
+  Arguments.createArray().apply {
+    for (component in components.orEmpty()) {
+      if (component.type() !in BANNER_COMPONENT_TYPES) continue
+      pushMap(Arguments.createMap().apply {
+        putString("type", component.type())
+        putString("text", component.text())
+        putString("imageUrl", component.imageBaseUrl()?.let { "$it@3x.png" } ?: "")
+      })
+    }
+  }
 
 fun locationEvent(result: LocationMatcherResult): WritableMap {
   val location = result.enhancedLocation

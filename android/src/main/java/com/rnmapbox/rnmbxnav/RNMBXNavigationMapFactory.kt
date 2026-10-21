@@ -11,6 +11,8 @@ import com.mapbox.maps.plugin.PuckBearing
 import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.plugin.animation.camera
 import com.mapbox.maps.plugin.animation.easeTo
+import com.mapbox.maps.plugin.gestures.OnMapClickListener
+import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.plugin.locationcomponent.OnIndicatorPositionChangedListener
 import com.mapbox.maps.plugin.locationcomponent.createDefault2DPuck
 import com.mapbox.maps.plugin.locationcomponent.location
@@ -97,6 +99,13 @@ class RNMBXNavigationMapBinding(
     }
   }
 
+  private val onMapClick = OnMapClickListener { point ->
+    routeLineApi.findClosestRoute(point, mapView.mapboxMap, ROUTE_CLICK_PADDING) { result ->
+      result.onValue { RNMBXNavigationSession.selectAlternativeRoute(it.navigationRoute) }
+    }
+    false
+  }
+
   private val onPuckPosition = OnIndicatorPositionChangedListener { point ->
     val result = routeLineApi.updateTraveledRouteLine(point)
     mapView.mapboxMap.style?.let { routeLineView.renderRouteLineUpdate(it, result) }
@@ -147,6 +156,7 @@ class RNMBXNavigationMapBinding(
 
   override fun onViewAttachedToWindow(view: View) {
     mapView.location.addOnIndicatorPositionChangedListener(onPuckPosition)
+    mapView.gestures.addOnMapClickListener(onMapClick)
     navigationCamera.registerNavigationCameraStateChangeObserver(onNavigationCameraState)
     cameraWillMoveMapRegistration = parent?.addOnCameraWillMoveMapListener(this)
     RNMBXNavigationSession.addListener(this)
@@ -158,6 +168,7 @@ class RNMBXNavigationMapBinding(
     cameraWillMoveMapRegistration = null
     navigationCamera.unregisterNavigationCameraStateChangeObserver(onNavigationCameraState)
     mapView.location.removeOnIndicatorPositionChangedListener(onPuckPosition)
+    mapView.gestures.removeOnMapClickListener(onMapClick)
     routeLineApi.cancel()
     routeLineView.cancel()
   }
@@ -170,7 +181,7 @@ class RNMBXNavigationMapBinding(
   }
 
   override fun onRoutes(routes: List<NavigationRoute>, preview: Boolean) {
-    routeLineApi.setNavigationRoutes(routes) { data ->
+    routeLineApi.setNavigationRoutes(routes, RNMBXNavigationSession.alternativesMetadata(routes)) { data ->
       mapView.mapboxMap.style?.let { routeLineView.renderRouteDrawData(it, data) }
     }
     if (routes.isEmpty() || preview) {
@@ -216,5 +227,6 @@ class RNMBXNavigationMapBinding(
 
   private companion object {
     val NO_PADDING = EdgeInsets(0.0, 0.0, 0.0, 0.0)
+    const val ROUTE_CLICK_PADDING = 30f
   }
 }

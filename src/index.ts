@@ -6,6 +6,7 @@ export {
 } from './Navigation';
 export type {
   ArriveEvent,
+  BannerComponent,
   Lane,
   LocationEvent,
   RouteProgressEvent,
@@ -31,8 +32,10 @@ export {
 } from './NavigationView';
 export {
   RNNavigationView,
+  type RNNavigationViewAppearance,
   type RNNavigationViewProps,
 } from './RNNavigationView';
+export type { DistanceUnit } from './guidance';
 export {
   NavigationViewport,
   type NavigationViewportProps,
