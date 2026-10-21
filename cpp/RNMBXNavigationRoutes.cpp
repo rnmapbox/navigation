@@ -68,6 +68,8 @@ std::shared_ptr<RouteHostObject> unwrapRoute(jsi::Runtime &runtime, const jsi::V
   throw jsi::JSError(runtime, "Expected a Route from requestRoutes");
 }
 
+jsi::Value makeRoute(jsi::Runtime &runtime, RouteResult result);
+
 /// Holds the resolve and reject functions of pending promises. It's owned by the installed host functions, so it's
 /// destroyed with the runtime; platform callbacks only keep a weak reference and are dropped after a reload.
 class Bindings : public std::enable_shared_from_this<Bindings> {
@@ -120,6 +122,34 @@ class Bindings : public std::enable_shared_from_this<Bindings> {
     });
   }
 
+  /// JS thread only; `nullopt` stops route change events.
+  void setRouteChangeListener(std::optional<jsi::Function> listener)
+  {
+    bool listening = listener.has_value();
+    routeChangeListener_ = std::move(listener);
+    if (!listening) {
+      platform_->setRouteChangeHandler(nullptr);
+      return;
+    }
+    platform_->setRouteChangeHandler([weak = weak_from_this()](RouteResult route, const std::string &reason) {
+      auto self = weak.lock();
+      if (!self) {
+        return;
+      }
+      self->callInvoker_->invokeAsync(
+          [weak, route = std::move(route), reason](jsi::Runtime &runtime) mutable {
+            auto self = weak.lock();
+            if (!self || !self->routeChangeListener_) {
+              return;
+            }
+            jsi::Object event(runtime);
+            event.setProperty(runtime, "route", makeRoute(runtime, std::move(route)));
+            event.setProperty(runtime, "reason", jsi::String::createFromUtf8(runtime, reason));
+            self->routeChangeListener_->call(runtime, event);
+          });
+    });
+  }
+
   RejectCallback rejecter(uint64_t id)
   {
     return [weak = weak_from_this(), id](const std::string &code, const std::string &message) {
@@ -142,6 +172,7 @@ class Bindings : public std::enable_shared_from_this<Bindings> {
   // Only touched on the JS thread.
   uint64_t nextId_ = 0;
   std::unordered_map<uint64_t, Pending> pending_;
+  std::optional<jsi::Function> routeChangeListener_;
 };
 
 const jsi::Value &argument(const jsi::Value *args, size_t count, size_t index)
@@ -300,8 +331,21 @@ jsi::Value RouteHostObject::get(jsi::Runtime &runtime, const jsi::PropNameID &pr
     jsi::Object object(runtime);
     object.setProperty(runtime, "distance", leg.distance);
     object.setProperty(runtime, "expectedTravelTime", leg.expectedTravelTime);
-    object.setProperty(runtime, "stepCount", leg.stepCount);
+    object.setProperty(runtime, "stepCount", static_cast<double>(leg.steps.size()));
     object.setProperty(runtime, "summary", jsi::String::createFromUtf8(runtime, leg.summary));
+    jsi::Array steps(runtime, leg.steps.size());
+    for (size_t j = 0; j < leg.steps.size(); j++) {
+      const auto &step = leg.steps[j];
+      jsi::Object stepObject(runtime);
+      stepObject.setProperty(runtime, "instruction", jsi::String::createFromUtf8(runtime, step.instruction));
+      stepObject.setProperty(runtime, "distance", step.distance);
+      stepObject.setProperty(runtime, "expectedTravelTime", step.expectedTravelTime);
+      stepObject.setProperty(runtime, "maneuverType", jsi::String::createFromUtf8(runtime, step.maneuverType));
+      stepObject.setProperty(runtime, "maneuverModifier", jsi::String::createFromUtf8(runtime, step.maneuverModifier));
+      stepObject.setProperty(runtime, "name", jsi::String::createFromUtf8(runtime, step.name));
+      steps.setValueAtIndex(runtime, j, stepObject);
+    }
+    object.setProperty(runtime, "steps", steps);
     legs.setValueAtIndex(runtime, i, object);
   }
   return legs;
@@ -418,6 +462,21 @@ void install(
           throwReleased(runtime);
         }
         return route->id();
+      });
+
+  setFunction(
+      runtime,
+      routes,
+      "setRouteChangeListener",
+      1,
+      [bindings](jsi::Runtime &runtime, const jsi::Value &, const jsi::Value *args, size_t count) -> jsi::Value {
+        const auto &listener = argument(args, count, 0);
+        if (listener.isObject() && listener.getObject(runtime).isFunction(runtime)) {
+          bindings->setRouteChangeListener(listener.getObject(runtime).getFunction(runtime));
+        } else {
+          bindings->setRouteChangeListener(std::nullopt);
+        }
+        return jsi::Value::undefined();
       });
 
   setFunction(

@@ -30,6 +30,18 @@
     _navigation.onCameraStateChange = ^(NSDictionary *event) {
       [weakSelf emitOnCameraStateChange:event];
     };
+    _navigation.onLocationChange = ^(NSDictionary *event) {
+      [weakSelf emitOnLocationChange:event];
+    };
+    _navigation.onArrive = ^(NSDictionary *event) {
+      [weakSelf emitOnArrive:event];
+    };
+    _navigation.onOffRouteChange = ^(NSDictionary *event) {
+      [weakSelf emitOnOffRouteChange:event];
+    };
+    _navigation.onVoiceInstruction = ^(NSDictionary *event) {
+      [weakSelf emitOnVoiceInstruction:event];
+    };
   }
   return self;
 }
@@ -67,6 +79,16 @@
 - (NSString *)getCameraState
 {
   return [_navigation cameraState];
+}
+
+- (void)setVoiceMuted:(BOOL)muted
+{
+  [_navigation setVoiceMuted:muted];
+}
+
+- (NSNumber *)isVoiceMuted
+{
+  return @([_navigation isVoiceMuted]);
 }
 
 - (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime

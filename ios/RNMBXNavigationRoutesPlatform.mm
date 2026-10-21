@@ -42,13 +42,20 @@ RouteResult toResult(RNMBXNavigationRoute *route)
   for (NSNumber *value in route.coordinates) {
     data.coordinates.push_back(value.doubleValue);
   }
+  NSUInteger step = 0;
   for (NSUInteger i = 0; i < route.legDistances.count; i++) {
-    data.legs.push_back({
-        route.legDistances[i].doubleValue,
-        route.legExpectedTravelTimes[i].doubleValue,
-        route.legStepCounts[i].intValue,
-        toString(route.legSummaries[i]),
-    });
+    RouteLeg leg{route.legDistances[i].doubleValue, route.legExpectedTravelTimes[i].doubleValue, toString(route.legSummaries[i])};
+    for (int j = 0; j < route.legStepCounts[i].intValue; j++, step++) {
+      leg.steps.push_back({
+          toString(route.stepInstructions[step]),
+          route.stepDistances[step].doubleValue,
+          route.stepExpectedTravelTimes[step].doubleValue,
+          toString(route.stepManeuverTypes[step]),
+          toString(route.stepManeuverModifiers[step]),
+          toString(route.stepNames[step]),
+      });
+    }
+    data.legs.push_back(std::move(leg));
   }
   return {std::move(data), std::make_shared<IOSNativeRoute>(route)};
 }
@@ -124,6 +131,17 @@ class IOSNavigationPlatform : public NavigationPlatform {
   void previewRoute(const std::shared_ptr<NativeRoute> &route) override
   {
     [navigation_ previewRoute:unwrap(route)];
+  }
+
+  void setRouteChangeHandler(RouteChangeHandler handler) override
+  {
+    if (!handler) {
+      navigation_.onRouteChange = nil;
+      return;
+    }
+    navigation_.onRouteChange = ^(RNMBXNavigationRoute *route, NSString *reason) {
+      handler(toResult(route), toString(reason));
+    };
   }
 
  private:

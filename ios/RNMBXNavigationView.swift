@@ -14,7 +14,7 @@ public final class RNMBXNavigationView: UIView {
 
   @objc public var simulate = false
   @objc public var mute = false {
-    didSet { applyMute() }
+    didSet { RNMBXNavigationSession.shared.voiceMuted = mute }
   }
 
   @objc public var route: RNMBXNavigationRoute? {
@@ -24,10 +24,6 @@ public final class RNMBXNavigationView: UIView {
   }
 
   private var navigationViewController: RNMBXNavigationViewController?
-  private var voiceController: RouteVoiceController? {
-    RNMBXNavigationSession.shared.provider?.routeVoiceController
-  }
-
   private var subscriptions = Set<AnyCancellable>()
   private var guidanceScheduled = false
   private var invalidated = false
@@ -75,10 +71,11 @@ public final class RNMBXNavigationView: UIView {
       onError?(["code": "start_failed", "message": error.localizedDescription])
       return
     }
-    // The new speech synthesizer and the view controller's `viewWillAppear` both reset mute on a later turn.
+    session.voiceMuted = mute
+    // The view controller's `viewWillAppear` resets its mute button on a later turn.
     defer {
       Task { @MainActor [weak self] in
-        self?.applyMute()
+        self?.renderMute()
       }
     }
     if navigationViewController != nil {
@@ -104,6 +101,10 @@ public final class RNMBXNavigationView: UIView {
     // The end of route feedback asks for a rating, which apps embedding the view rarely want.
     controller.showsEndOfRouteFeedback = false
     navigationViewController = controller
+    muteButton?.addTarget(self, action: #selector(muteButtonTapped(_:)), for: .touchUpInside)
+    session.$voiceMuted
+      .sink { [weak self] muted in self?.muteButton?.isSelected = muted }
+      .store(in: &subscriptions)
 
     navigation.navigation().waypointsArrival
       .sink { [weak self] status in
@@ -120,9 +121,15 @@ public final class RNMBXNavigationView: UIView {
       .store(in: &subscriptions)
   }
 
-  private func applyMute() {
-    voiceController?.speechSynthesizer.muted = mute
-    muteButton?.isSelected = mute
+  private func renderMute() {
+    muteButton?.isSelected = RNMBXNavigationSession.shared.voiceMuted
+  }
+
+  @objc private func muteButtonTapped(_ button: UIButton) {
+    // The SDK's own target toggles the button; read it once every target has run.
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.voiceMuted = button.isSelected
+    }
   }
 
   /// The SDK keeps its mute button internal; it's the only floating button with a selected image.

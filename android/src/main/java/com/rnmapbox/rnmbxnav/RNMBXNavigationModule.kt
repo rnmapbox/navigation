@@ -7,6 +7,7 @@ import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.turbomodule.core.interfaces.BindingsInstallerHolder
 import com.facebook.react.turbomodule.core.interfaces.TurboModuleWithJSIBindings
+import com.mapbox.api.directions.v5.models.BannerComponents
 import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.common.MapboxOptions
 import com.mapbox.geojson.Point
@@ -14,10 +15,16 @@ import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
 import com.mapbox.navigation.base.route.NavigationRoute
 import com.mapbox.navigation.base.route.NavigationRouterCallback
 import com.mapbox.navigation.base.route.RouterFailure
+import com.mapbox.navigation.base.speed.model.SpeedLimitSign
+import com.mapbox.navigation.base.speed.model.SpeedUnit
 import com.mapbox.navigation.base.trip.model.RouteProgress
+import com.mapbox.navigation.core.trip.session.LocationMatcherResult
 
 class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
   NativeRNMBXNavigationModuleSpec(reactContext), TurboModuleWithJSIBindings {
+
+  // Read on the JS thread; the session is main thread only.
+  @Volatile private var voiceMuted = false
 
   init {
     UiThreadUtil.runOnUiThread {
@@ -25,6 +32,26 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
         emitOnCameraStateChange(Arguments.createMap().apply { putString("state", state.jsName) })
       }
       RNMBXNavigationSession.routeProgressObserver = { progress -> emitOnRouteProgress(routeProgressEvent(progress)) }
+      RNMBXNavigationSession.locationMatcherObserver = { result -> emitOnLocationChange(locationEvent(result)) }
+      RNMBXNavigationSession.arrivalObserver = { waypointIndex, isFinalDestination ->
+        emitOnArrive(Arguments.createMap().apply {
+          putInt("waypointIndex", waypointIndex)
+          putBoolean("isFinalDestination", isFinalDestination)
+        })
+      }
+      RNMBXNavigationSession.offRouteObserver = { offRoute ->
+        emitOnOffRouteChange(Arguments.createMap().apply { putBoolean("offRoute", offRoute) })
+      }
+      RNMBXNavigationSession.voiceInstructionObserver = { instructions ->
+        emitOnVoiceInstruction(Arguments.createMap().apply {
+          putString("text", instructions.announcement() ?: "")
+          putString("ssml", instructions.ssmlAnnouncement() ?: "")
+          putDouble("distanceAlongStep", instructions.distanceAlongGeometry() ?: 0.0)
+        })
+      }
+      RNMBXNavigationSession.routeChangeObserver = { routes, reason ->
+        RNMBXNavigationNative.routeChanged(RNMBXNavigationRoute(routes), reason)
+      }
     }
   }
 
@@ -135,10 +162,22 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
 
   override fun getCameraState(): String = RNMBXNavigationSession.cameraState.jsName
 
+  override fun setVoiceMuted(muted: Boolean) {
+    voiceMuted = muted
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.voiceMuted = muted }
+  }
+
+  override fun isVoiceMuted(): Boolean = voiceMuted
+
   override fun invalidate() {
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = null
       RNMBXNavigationSession.routeProgressObserver = null
+      RNMBXNavigationSession.locationMatcherObserver = null
+      RNMBXNavigationSession.arrivalObserver = null
+      RNMBXNavigationSession.offRouteObserver = null
+      RNMBXNavigationSession.voiceInstructionObserver = null
+      RNMBXNavigationSession.routeChangeObserver = null
       RNMBXNavigationSession.stopNavigation()
     }
     super.invalidate()
@@ -157,7 +196,23 @@ fun routeProgressEvent(progress: RouteProgress): WritableMap {
   val stepProgress = progress.currentLegProgress?.currentStepProgress
   val banner = progress.bannerInstructions?.primary()
   val upcomingManeuver = progress.currentLegProgress?.upcomingStep?.maneuver()
+  val sub = progress.bannerInstructions?.sub()
+  val lanes = sub?.components().orEmpty().filter { it.type() == BannerComponents.LANE }
   return Arguments.createMap().apply {
+    putString("secondaryInstruction", progress.bannerInstructions?.secondary()?.text() ?: "")
+    putString("subInstruction", if (lanes.isEmpty()) sub?.text() ?: "" else "")
+    putArray("lanes", Arguments.createArray().apply {
+      for (lane in lanes) {
+        val valid = lane.active() == true
+        pushMap(Arguments.createMap().apply {
+          putArray("indications", Arguments.fromList(lane.directions().orEmpty()))
+          putBoolean("valid", valid)
+          putString("activeDirection", if (valid) lane.activeDirection() ?: "" else "")
+        })
+      }
+    })
+    putInt("legIndex", progress.currentLegProgress?.legIndex ?: 0)
+    putInt("stepIndex", stepProgress?.stepIndex ?: 0)
     putDouble("distanceRemaining", progress.distanceRemaining.toDouble())
     putDouble("distanceTraveled", progress.distanceTraveled.toDouble())
     putDouble("durationRemaining", progress.durationRemaining)
@@ -166,5 +221,25 @@ fun routeProgressEvent(progress: RouteProgress): WritableMap {
     putString("maneuverInstruction", banner?.text() ?: upcomingManeuver?.instruction() ?: "")
     putString("maneuverType", banner?.type() ?: upcomingManeuver?.type() ?: "")
     putString("maneuverModifier", banner?.modifier() ?: upcomingManeuver?.modifier() ?: "")
+  }
+}
+
+fun locationEvent(result: LocationMatcherResult): WritableMap {
+  val location = result.enhancedLocation
+  return Arguments.createMap().apply {
+    putDouble("latitude", location.latitude)
+    putDouble("longitude", location.longitude)
+    putDouble("speed", location.speed ?: -1.0)
+    putDouble("course", location.bearing ?: -1.0)
+    putString("roadName", result.road.components.joinToString(" / ") { it.text })
+    val limit = result.speedLimitInfo
+    val speed = limit.speed
+    if (speed != null) {
+      putMap("speedLimit", Arguments.createMap().apply {
+        putDouble("speed", speed.toDouble())
+        putString("unit", if (limit.unit == SpeedUnit.MILES_PER_HOUR) "mph" else "km/h")
+        putString("sign", if (limit.sign == SpeedLimitSign.MUTCD) "mutcd" else "vienna")
+      })
+    }
   }
 }
