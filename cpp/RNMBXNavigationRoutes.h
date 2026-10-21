@@ -15,11 +15,20 @@ namespace rnmbxnav {
 
 namespace jsi = facebook::jsi;
 
+struct RouteStep {
+  std::string instruction;
+  double distance = 0;
+  double expectedTravelTime = 0;
+  std::string maneuverType;
+  std::string maneuverModifier;
+  std::string name;
+};
+
 struct RouteLeg {
   double distance = 0;
   double expectedTravelTime = 0;
-  int stepCount = 0;
   std::string summary;
+  std::vector<RouteStep> steps;
 };
 
 /// Immutable snapshot of a route, copied from the SDK when the route is created so getters never leave the JS thread.
@@ -80,6 +89,9 @@ class NavigationPlatform {
 
   /// `nullptr` clears the preview.
   virtual void previewRoute(const std::shared_ptr<NativeRoute> &route) = 0;
+
+  using RouteChangeHandler = std::function<void(RouteResult route, const std::string &reason)>;
+  virtual void setRouteChangeHandler(RouteChangeHandler handler) = 0;
 };
 
 struct RouteStats {

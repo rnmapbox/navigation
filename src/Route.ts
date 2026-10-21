@@ -22,6 +22,21 @@ export type RouteRequestOptions = {
   units?: 'metric' | 'imperial';
 };
 
+export type RouteStep = {
+  /** E.g. "Turn right onto Market Street". */
+  instruction: string;
+  /** Meters. */
+  distance: number;
+  /** Seconds. */
+  expectedTravelTime: number;
+  /** Mapbox Directions maneuver type, e.g. "turn", "arrive". */
+  maneuverType: string;
+  /** Mapbox Directions maneuver modifier, e.g. "right". Empty if none. */
+  maneuverModifier: string;
+  /** Name of the road the step is on. Empty if unnamed. */
+  name: string;
+};
+
 export type RouteLeg = {
   /** Meters. */
   distance: number;
@@ -30,6 +45,7 @@ export type RouteLeg = {
   stepCount: number;
   /** Names of the main roads, e.g. "Market Street, Embarcadero". */
   summary: string;
+  steps: RouteStep[];
 };
 
 /**
@@ -58,6 +74,13 @@ export type RouteResponse = {
   alternatives: Route[];
 };
 
+export type RouteChangeEvent = {
+  /** The route guidance follows now. Release it when you're done with it. */
+  route: Route;
+  /** `reroute` after going off route, `alternative` when guidance switched to an alternative route. */
+  reason: 'reroute' | 'alternative';
+};
+
 export type RouteStats = {
   /** Routes JS holds that weren't released yet. */
   live: number;
@@ -80,6 +103,9 @@ type RouteBindings = {
   /** Native views can't receive host objects as props, so `<NavigationView>` passes this id instead. */
   getRouteId(route: Route): number;
   getRouteStats(): RouteStats;
+  setRouteChangeListener(
+    listener: ((event: RouteChangeEvent) => void) | null
+  ): void;
 };
 
 declare global {

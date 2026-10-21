@@ -14,6 +14,15 @@ type RouteProgressEvent = Readonly<{
   maneuverInstruction: string;
   maneuverType: string;
   maneuverModifier: string;
+  secondaryInstruction: string;
+  subInstruction: string;
+  lanes: {
+    indications: string[];
+    valid: boolean;
+    activeDirection: string;
+  }[];
+  legIndex: CodegenTypes.Int32;
+  stepIndex: CodegenTypes.Int32;
 }>;
 
 type ArriveEvent = Readonly<{

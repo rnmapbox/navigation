@@ -2,19 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import NativeNavigationView from './specs/RNMBXNavigationViewNativeComponent';
-import type { RouteProgressEvent } from './specs/NativeRNMBXNavigationModule';
+import type {
+  ArriveEvent,
+  RouteProgressEvent,
+} from './specs/NativeRNMBXNavigationModule';
 import {
   routeBindings,
   toNativeWaypoint,
   type Route,
   type Waypoint,
 } from './Route';
-
-export type ArriveEvent = {
-  /** Index in the route's waypoints, origin being 0. */
-  waypointIndex: number;
-  isFinalDestination: boolean;
-};
 
 export type NavigationViewError = {
   /** E.g. `route_request_failed`, `route_released`, `start_failed`. */
@@ -73,7 +70,7 @@ export function NavigationView({
   );
 }
 
-function useRequestedRoute(
+export function useRequestedRoute(
   waypoints: Waypoint[] | undefined,
   onError: ((error: NavigationViewError) => void) | undefined
 ): Route | undefined {

@@ -1,19 +1,31 @@
 package com.rnmapbox.rnmbxnav
 
 import android.content.Context
+import com.mapbox.api.directions.v5.models.VoiceInstructions
 import com.mapbox.common.MapboxOptions
 import com.mapbox.common.location.Location
 import com.mapbox.navigation.base.ExperimentalPreviewMapboxNavigationAPI
 import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.route.NavigationRoute
+import com.mapbox.navigation.base.trip.model.RouteLegProgress
 import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.core.MapboxNavigation
 import com.mapbox.navigation.core.MapboxNavigationProvider
+import com.mapbox.navigation.core.arrival.ArrivalObserver
+import com.mapbox.navigation.core.directions.session.RoutesExtra
 import com.mapbox.navigation.core.directions.session.RoutesObserver
 import com.mapbox.navigation.core.replay.route.ReplayRouteMapper
 import com.mapbox.navigation.core.trip.session.LocationMatcherResult
 import com.mapbox.navigation.core.trip.session.LocationObserver
+import com.mapbox.navigation.core.trip.session.OffRouteObserver
 import com.mapbox.navigation.core.trip.session.RouteProgressObserver
+import com.mapbox.navigation.core.trip.session.VoiceInstructionsObserver
+import com.mapbox.navigation.ui.base.util.MapboxNavigationConsumer
+import com.mapbox.navigation.voice.api.MapboxSpeechApi
+import com.mapbox.navigation.voice.api.MapboxVoiceInstructionsPlayer
+import com.mapbox.navigation.voice.model.SpeechAnnouncement
+import com.mapbox.navigation.voice.model.SpeechVolume
+import java.util.Locale
 
 enum class RNMBXNavigationCameraState(val jsName: String) {
   FOLLOWING("following"),
@@ -40,6 +52,21 @@ object RNMBXNavigationSession {
   var cameraStateObserver: ((RNMBXNavigationCameraState) -> Unit)? = null
 
   var routeProgressObserver: ((RouteProgress) -> Unit)? = null
+  var locationMatcherObserver: ((LocationMatcherResult) -> Unit)? = null
+  var arrivalObserver: ((waypointIndex: Int, isFinalDestination: Boolean) -> Unit)? = null
+  var offRouteObserver: ((Boolean) -> Unit)? = null
+  var voiceInstructionObserver: ((VoiceInstructions) -> Unit)? = null
+  var routeChangeObserver: ((List<NavigationRoute>, String) -> Unit)? = null
+
+  var voiceMuted = false
+    set(value) {
+      field = value
+      applyVoiceMuted()
+    }
+
+  private var speechApi: MapboxSpeechApi? = null
+  private var voicePlayer: MapboxVoiceInstructionsPlayer? = null
+  private val onSpeechPlayed = MapboxNavigationConsumer<SpeechAnnouncement> { speechApi?.clean(it) }
 
   /** Kept until navigation stops, whether or not JS releases its `Route`. */
   private var guidanceRoute: RNMBXNavigationRoute? = null
@@ -56,11 +83,57 @@ object RNMBXNavigationSession {
 
     override fun onNewLocationMatcherResult(locationMatcherResult: LocationMatcherResult) {
       updateLocation(locationMatcherResult.enhancedLocation, locationMatcherResult.keyPoints)
+      locationMatcherObserver?.invoke(locationMatcherResult)
     }
   }
 
   private val routesObserver = RoutesObserver { result ->
+    val previousMainRouteId = routes.firstOrNull()?.id
     updateRoutes(result.navigationRoutes, preview = false)
+    val reason = when (result.reason) {
+      RoutesExtra.ROUTES_UPDATE_REASON_REROUTE -> "reroute"
+      // Also reported when only the alternatives change.
+      RoutesExtra.ROUTES_UPDATE_REASON_ALTERNATIVE ->
+        if (result.navigationRoutes.firstOrNull()?.id != previousMainRouteId) "alternative" else null
+      else -> null
+    }
+    if (reason != null && result.navigationRoutes.isNotEmpty()) {
+      routeChangeObserver?.invoke(result.navigationRoutes, reason)
+    }
+  }
+
+  private val navigationArrivalObserver = object : ArrivalObserver {
+    override fun onWaypointArrival(routeProgress: RouteProgress) {
+      arrivalObserver?.invoke((routeProgress.currentLegProgress?.legIndex ?: 0) + 1, false)
+    }
+
+    override fun onNextRouteLegStart(routeLegProgress: RouteLegProgress) = Unit
+
+    override fun onFinalDestinationArrival(routeProgress: RouteProgress) {
+      if (arrivedAtFinalDestination) return
+      arrivedAtFinalDestination = true
+      arrivalObserver?.invoke(routeProgress.navigationRoute.directionsRoute.legs()?.size ?: 1, true)
+    }
+  }
+
+  private var offRoute = false
+  private var arrivedAtFinalDestination = false
+  // The SDK also reports the current state when the observer is registered.
+  private val navigationOffRouteObserver = OffRouteObserver { offRoute ->
+    if (offRoute != this.offRoute) {
+      this.offRoute = offRoute
+      offRouteObserver?.invoke(offRoute)
+    }
+  }
+
+  private val voiceInstructionsObserver = VoiceInstructionsObserver { instructions ->
+    voiceInstructionObserver?.invoke(instructions)
+    speechApi?.generate(instructions) { result ->
+      result.fold(
+        { error -> voicePlayer?.play(error.fallback, onSpeechPlayed) },
+        { value -> voicePlayer?.play(value.announcement, onSpeechPlayed) }
+      )
+    }
   }
 
   private var location: Location? = null
@@ -122,7 +195,12 @@ object RNMBXNavigationSession {
     navigation.registerRouteProgressObserver(navigationRouteProgressObserver)
     navigation.registerLocationObserver(locationObserver)
     navigation.registerRoutesObserver(routesObserver)
+    navigation.registerArrivalObserver(navigationArrivalObserver)
+    navigation.registerOffRouteObserver(navigationOffRouteObserver)
+    navigation.registerVoiceInstructionsObserver(voiceInstructionsObserver)
+    startVoice(navigation.navigationOptions.applicationContext, route)
     guidanceRoute = route
+    arrivedAtFinalDestination = false
     val start = Any()
     guidanceStart = start
     if (simulate) {
@@ -149,10 +227,31 @@ object RNMBXNavigationSession {
     }
   }
 
+  private fun startVoice(context: Context, route: RNMBXNavigationRoute) {
+    stopVoice()
+    val language = route.routes.first().directionsRoute.routeOptions()?.language() ?: Locale.getDefault().toLanguageTag()
+    speechApi = MapboxSpeechApi(context, language)
+    voicePlayer = MapboxVoiceInstructionsPlayer(context, language)
+    applyVoiceMuted()
+  }
+
+  private fun applyVoiceMuted() {
+    voicePlayer?.volume(SpeechVolume(if (voiceMuted) 0f else 1f))
+  }
+
+  private fun stopVoice() {
+    speechApi?.cancel()
+    voicePlayer?.shutdown()
+    speechApi = null
+    voicePlayer = null
+  }
+
   @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
   fun stopNavigation() {
     guidanceRoute = null
     guidanceStart = null
+    offRoute = false
+    stopVoice()
     if (MapboxNavigationProvider.isCreated()) {
       val navigation = MapboxNavigationProvider.retrieve()
       unregisterObservers(navigation)
@@ -171,6 +270,9 @@ object RNMBXNavigationSession {
     navigation.unregisterRouteProgressObserver(navigationRouteProgressObserver)
     navigation.unregisterLocationObserver(locationObserver)
     navigation.unregisterRoutesObserver(routesObserver)
+    navigation.unregisterArrivalObserver(navigationArrivalObserver)
+    navigation.unregisterOffRouteObserver(navigationOffRouteObserver)
+    navigation.unregisterVoiceInstructionsObserver(voiceInstructionsObserver)
   }
 
   private fun stop() {

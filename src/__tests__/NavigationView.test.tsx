@@ -25,6 +25,7 @@ const bindings = {
   startActiveGuidance: jest.fn(),
   previewRoute: jest.fn(),
   getRouteId: jest.fn((route: Route & { id: number }) => route.id),
+  setRouteChangeListener: jest.fn(),
   getRouteStats: jest.fn(),
 };
 globalThis.__RNMBXNavigationRoutes = bindings;

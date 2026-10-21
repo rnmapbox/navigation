@@ -8,30 +8,67 @@ import MapboxNavigationCore
 public final class RNMBXNavigation: NSObject {
   @objc public var onRouteProgress: (([String: Any]) -> Void)?
   @objc public var onCameraStateChange: (([String: Any]) -> Void)?
+  @objc public var onLocationChange: (([String: Any]) -> Void)?
+  @objc public var onArrive: (([String: Any]) -> Void)?
+  @objc public var onOffRouteChange: (([String: Any]) -> Void)?
+  @objc public var onVoiceInstruction: (([String: Any]) -> Void)?
+  @objc public var onRouteChange: ((RNMBXNavigationRoute, String) -> Void)?
 
-  @MainActor private var progressSubscription: AnyCancellable?
-  @MainActor private var cameraStateSubscription: AnyCancellable?
+  @MainActor private var subscriptions = Set<AnyCancellable>()
 
-  /// `getCameraState` is synchronous and runs on the JS thread; the session lives on the main thread.
-  private let cameraStateLock = NSLock()
+  /// `getCameraState` and `isVoiceMuted` are synchronous and run on the JS thread; the session lives on the main thread.
+  private let stateLock = NSLock()
   private var _cameraState = "idle"
+  private var _voiceMuted = false
 
   override public init() {
     super.init()
     Task { @MainActor in
-      self.cameraStateSubscription = RNMBXNavigationSession.shared.$cameraState
+      let session = RNMBXNavigationSession.shared
+      session.$cameraState
         .map(Self.name)
         .removeDuplicates()
         .sink { [weak self] state in
           guard let self else { return }
-          self.cameraStateLock.withLock { self._cameraState = state }
+          self.stateLock.withLock { self._cameraState = state }
           self.onCameraStateChange?(["state": state])
         }
-      self.progressSubscription = RNMBXNavigationSession.shared.$routeProgress
+        .store(in: &self.subscriptions)
+      session.$routeProgress
         .compactMap { $0 }
         .sink { [weak self] progress in
           self?.onRouteProgress?(Self.progressEvent(progress))
         }
+        .store(in: &self.subscriptions)
+      session.mapMatching
+        .sink { [weak self] state in
+          self?.onLocationChange?(Self.locationEvent(state))
+        }
+        .store(in: &self.subscriptions)
+      session.arrivals
+        .sink { [weak self] arrival in
+          self?.onArrive?(["waypointIndex": arrival.waypointIndex, "isFinalDestination": arrival.isFinalDestination])
+        }
+        .store(in: &self.subscriptions)
+      session.$offRoute
+        .removeDuplicates()
+        .dropFirst()
+        .sink { [weak self] in self?.onOffRouteChange?(["offRoute": $0]) }
+        .store(in: &self.subscriptions)
+      session.voiceInstructions
+        .sink { [weak self] instruction in
+          self?.onVoiceInstruction?([
+            "text": instruction.text,
+            "ssml": instruction.ssmlText,
+            "distanceAlongStep": instruction.distanceAlongStep,
+          ])
+        }
+        .store(in: &self.subscriptions)
+      session.routeChanges
+        .sink { [weak self] routes, reason in
+          self?.onRouteChange?(RNMBXNavigationRoute(routes), reason)
+        }
+        .store(in: &self.subscriptions)
     }
   }
 
@@ -47,8 +84,7 @@ public final class RNMBXNavigation: NSObject {
 
   @objc public func invalidate() {
     Task { @MainActor in
-      self.cameraStateSubscription = nil
-      self.progressSubscription = nil
+      self.subscriptions.removeAll()
       RNMBXNavigationSession.shared.stop()
     }
   }
@@ -161,7 +197,18 @@ public final class RNMBXNavigation: NSObject {
   }
 
   @objc public func cameraState() -> String {
-    cameraStateLock.withLock { _cameraState }
+    stateLock.withLock { _cameraState }
+  }
+
+  @objc public func setVoiceMuted(_ muted: Bool) {
+    stateLock.withLock { _voiceMuted = muted }
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.voiceMuted = muted
+    }
+  }
+
+  @objc public func isVoiceMuted() -> Bool {
+    stateLock.withLock { _voiceMuted }
   }
 
   private static func name(_ state: NavigationCameraState) -> String {
@@ -174,9 +221,24 @@ public final class RNMBXNavigation: NSObject {
 
   static func progressEvent(_ progress: RouteProgress) -> [String: Any] {
     let stepProgress = progress.currentLegProgress.currentStepProgress
-    let banner = stepProgress.currentVisualInstruction?.primaryInstruction
+    let visualInstruction = stepProgress.currentVisualInstruction
+    let banner = visualInstruction?.primaryInstruction
     let upcomingStep = progress.currentLegProgress.upcomingStep
+    let sub = visualInstruction?.tertiaryInstruction
+    let lanes: [[String: Any]] = sub?.components.compactMap { component in
+      guard case let .lane(indications, isUsable, preferredDirection) = component else { return nil }
+      return [
+        "indications": indications.descriptions,
+        "valid": isUsable,
+        "activeDirection": isUsable ? preferredDirection?.rawValue ?? "" : "",
+      ]
+    } ?? []
     return [
+      "secondaryInstruction": visualInstruction?.secondaryInstruction?.text ?? "",
+      "subInstruction": lanes.isEmpty ? sub?.text ?? "" : "",
+      "lanes": lanes,
+      "legIndex": progress.legIndex,
+      "stepIndex": progress.currentLegProgress.stepIndex,
       "distanceRemaining": progress.distanceRemaining,
       "distanceTraveled": progress.distanceTraveled,
       "durationRemaining": progress.durationRemaining,
@@ -186,5 +248,25 @@ public final class RNMBXNavigation: NSObject {
       "maneuverType": banner?.maneuverType?.rawValue ?? upcomingStep?.maneuverType.rawValue ?? "",
       "maneuverModifier": banner?.maneuverDirection?.rawValue ?? upcomingStep?.maneuverDirection?.rawValue ?? "",
     ]
+  }
+
+  static func locationEvent(_ state: MapMatchingState) -> [String: Any] {
+    let location = state.enhancedLocation
+    var event: [String: Any] = [
+      "latitude": location.coordinate.latitude,
+      "longitude": location.coordinate.longitude,
+      "speed": location.speed,
+      "course": location.course,
+      "roadName": state.roadName?.text ?? "",
+    ]
+    if let limit = state.speedLimit.value {
+      let unit: UnitSpeed = limit.unit == .milesPerHour ? .milesPerHour : .kilometersPerHour
+      event["speedLimit"] = [
+        "speed": limit.converted(to: unit).value.rounded(),
+        "unit": unit == .milesPerHour ? "mph" : "km/h",
+        "sign": state.speedLimit.signStandard == .mutcd ? "mutcd" : "vienna",
+      ]
+    }
+    return event
   }
 }

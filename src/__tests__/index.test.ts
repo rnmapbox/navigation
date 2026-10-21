@@ -1,6 +1,8 @@
 import Navigation, { type Route } from '../index';
 import NativeNavigation from '../specs/NativeRNMBXNavigationModule';
 
+jest.mock('@rnmapbox/maps', () => ({ MapView: 'MapView' }));
+
 jest.mock('../specs/NativeRNMBXNavigationModule', () => ({
   __esModule: true,
   default: {
@@ -11,6 +13,9 @@ jest.mock('../specs/NativeRNMBXNavigationModule', () => ({
     getCameraState: jest.fn(() => 'following'),
     onRouteProgress: jest.fn(() => ({ remove: jest.fn() })),
     onCameraStateChange: jest.fn(() => ({ remove: jest.fn() })),
+    onOffRouteChange: jest.fn(() => ({ remove: jest.fn() })),
+    setVoiceMuted: jest.fn(),
+    isVoiceMuted: jest.fn(() => true),
   },
 }));
 
@@ -25,6 +30,7 @@ const bindings = {
   startActiveGuidance: jest.fn(() => Promise.resolve()),
   previewRoute: jest.fn(),
   getRouteId: jest.fn(() => 1),
+  setRouteChangeListener: jest.fn<void, [unknown]>(),
   getRouteStats: jest.fn(() => ({ live: 1, released: 0, collected: 0 })),
 };
 globalThis.__RNMBXNavigationRoutes = bindings;
@@ -103,5 +109,40 @@ describe('Navigation', () => {
     nativeListener({ state: 'idle' });
     expect(listener).toHaveBeenCalledWith('idle');
     expect(subscription.remove).toBeDefined();
+  });
+
+  it('passes the off route flag to the listener', () => {
+    const listener = jest.fn();
+    Navigation.addOffRouteListener(listener);
+    native.onOffRouteChange.mock.calls[0]![0]({ offRoute: true });
+    expect(listener).toHaveBeenCalledWith(true);
+  });
+
+  it('installs the route change listener while JS listens', () => {
+    const first = jest.fn();
+    const second = jest.fn();
+    const firstSubscription = Navigation.addRouteChangeListener(first);
+    const secondSubscription = Navigation.addRouteChangeListener(second);
+    expect(bindings.setRouteChangeListener).toHaveBeenCalledTimes(1);
+
+    const dispatch = bindings.setRouteChangeListener.mock.calls[0]![0] as (
+      event: unknown
+    ) => void;
+    const event = { route, reason: 'reroute' };
+    dispatch(event);
+    expect(first).toHaveBeenCalledWith(event);
+    expect(second).toHaveBeenCalledWith(event);
+
+    firstSubscription.remove();
+    firstSubscription.remove();
+    expect(bindings.setRouteChangeListener).toHaveBeenCalledTimes(1);
+    secondSubscription.remove();
+    expect(bindings.setRouteChangeListener).toHaveBeenLastCalledWith(null);
+  });
+
+  it('mutes voice instructions', () => {
+    Navigation.setVoiceMuted(true);
+    expect(native.setVoiceMuted).toHaveBeenCalledWith(true);
+    expect(Navigation.isVoiceMuted()).toBe(true);
   });
 });
