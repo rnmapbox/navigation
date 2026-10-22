@@ -40,7 +40,8 @@
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
-    "prepare": "bob build"
+    "prepare": "bob build",
+    "docs": "typedoc"
   },
   "keywords": [
     "react-native",
@@ -86,6 +87,8 @@
     "react-native-builder-bob": "^0.43.2",
     "react-test-renderer": "19.2.3",
     "turbo": "^2.10.8",
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.14.1",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {

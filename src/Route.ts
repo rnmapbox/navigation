@@ -1,13 +1,31 @@
 import './specs/NativeRNMBXNavigationModule';
 
-/** GeoJSON order, same as `@rnmapbox/maps`. */
+/**
+ * GeoJSON order, same as `@rnmapbox/maps`.
+ *
+ * @group Routes
+ */
 export type Position = [longitude: number, latitude: number];
 
-/** GeoJSON LineString. */
+/**
+ * GeoJSON LineString.
+ *
+ * @group Routes
+ */
 export type LineString = { type: 'LineString'; coordinates: Position[] };
 
+/**
+ * A coordinate, or a coordinate with the name the navigation UI shows for it, e.g. on arrival.
+ *
+ * @group Routes
+ */
 export type Waypoint = Position | { coordinate: Position; name?: string };
 
+/**
+ * Options of {@link Navigation.requestRoutes}.
+ *
+ * @group Routes
+ */
 export type RouteRequestOptions = {
   /** Origin first, destination last. */
   waypoints: Waypoint[];
@@ -19,9 +37,15 @@ export type RouteRequestOptions = {
   exclude?: string[];
   /** Language of instructions, e.g. `en` or `de-DE`. */
   language?: string;
+  /** Unit of the distances in voice instructions. */
   units?: 'metric' | 'imperial';
 };
 
+/**
+ * A maneuver and the road up to the next one, in `steps` of {@link RouteLeg}.
+ *
+ * @group Routes
+ */
 export type RouteStep = {
   /** E.g. "Turn right onto Market Street". */
   instruction: string;
@@ -37,11 +61,17 @@ export type RouteStep = {
   name: string;
 };
 
+/**
+ * The part of a route between two consecutive waypoints.
+ *
+ * @group Routes
+ */
 export type RouteLeg = {
   /** Meters. */
   distance: number;
   /** Seconds. */
   expectedTravelTime: number;
+  /** Same as `steps.length`. */
   stepCount: number;
   /** Names of the main roads, e.g. "Market Street, Embarcadero". */
   summary: string;
@@ -49,11 +79,15 @@ export type RouteLeg = {
 };
 
 /**
- * A route from {@link requestRoutes}, backed by the native SDK route.
+ * A route from {@link Navigation.requestRoutes}, backed by the native SDK route.
+ * The getters read a copy taken when the route was created, so they're synchronous.
+ * Routes don't survive a JS reload.
  *
  * Call `release()` when you're done with it; the garbage collector only releases it eventually. Reading any
  * property but `isReleased` after `release()` throws an error with `code: 'route_released'`.
  * Guidance and the route preview keep their own reference, so releasing a route they use doesn't affect them.
+ *
+ * @group Routes
  */
 export interface Route {
   /** Meters. */
@@ -64,16 +98,27 @@ export interface Route {
   readonly geometry: LineString;
   /** A new array on every read. */
   readonly legs: RouteLeg[];
+  /** Whether `release()` was called. Readable after release. */
   readonly isReleased: boolean;
   /** Frees the native route. Calling it again does nothing. */
   release(): void;
 }
 
+/**
+ * Result of {@link Navigation.requestRoutes}. `alternatives` is empty unless requested.
+ *
+ * @group Routes
+ */
 export type RouteResponse = {
   main: Route;
   alternatives: Route[];
 };
 
+/**
+ * From {@link Navigation.addRouteChangeListener}.
+ *
+ * @group Events
+ */
 export type RouteChangeEvent = {
   /** The route guidance follows now. Release it when you're done with it. */
   route: Route;
@@ -81,6 +126,11 @@ export type RouteChangeEvent = {
   reason: 'reroute' | 'alternative';
 };
 
+/**
+ * From {@link Navigation.getRouteStats}.
+ *
+ * @group Routes
+ */
 export type RouteStats = {
   /** Routes JS holds that weren't released yet. */
   live: number;

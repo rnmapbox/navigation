@@ -4,6 +4,11 @@ import {
   type TurboModule,
 } from 'react-native';
 
+/**
+ * A lane at the next maneuver, in `lanes` of {@link RouteProgressEvent}.
+ *
+ * @group Events
+ */
 export type Lane = {
   /** E.g. `["straight", "right"]`. */
   indications: ReadonlyArray<string>;
@@ -13,7 +18,11 @@ export type Lane = {
   activeDirection: string;
 };
 
-/** A piece of a banner instruction, see the Mapbox Directions `banner_instructions` components. */
+/**
+ * A piece of a banner instruction, see the Mapbox Directions `banner_instructions` components.
+ *
+ * @group Events
+ */
 export type BannerComponent = {
   /** "text", "icon" (a road shield), "delimiter", "exit" or "exit-number". */
   type: string;
@@ -23,6 +32,11 @@ export type BannerComponent = {
   imageUrl: string;
 };
 
+/**
+ * From {@link Navigation.addRouteProgressListener} and `onRouteProgress`.
+ *
+ * @group Events
+ */
 export type RouteProgressEvent = {
   /** Meters. */
   distanceRemaining: number;
@@ -50,12 +64,19 @@ export type RouteProgressEvent = {
   subInstruction: string;
   /** Lanes at the next maneuver, left to right. Empty if the route has no lane data there. */
   lanes: ReadonlyArray<Lane>;
+  /** Index of the current leg, in {@link Route} `legs`. */
   legIndex: CodegenTypes.Int32;
   /** Index of the current step in the current leg. */
   stepIndex: CodegenTypes.Int32;
 };
 
+/**
+ * Posted speed limit, in {@link LocationEvent}.
+ *
+ * @group Events
+ */
 export type SpeedLimit = {
+  /** In `unit`. */
   speed: number;
   /** "km/h" or "mph". */
   unit: string;
@@ -63,7 +84,11 @@ export type SpeedLimit = {
   sign: string;
 };
 
-/** The location snapped to the road or the route. */
+/**
+ * The location snapped to the road or the route.
+ *
+ * @group Events
+ */
 export type LocationEvent = {
   latitude: number;
   longitude: number;
@@ -77,9 +102,15 @@ export type LocationEvent = {
   speedLimit?: SpeedLimit;
 };
 
+/**
+ * From {@link Navigation.addArriveListener} and `onArrive`.
+ *
+ * @group Events
+ */
 export type ArriveEvent = {
   /** Index in the route's waypoints, origin being 0. */
   waypointIndex: CodegenTypes.Int32;
+  /** The waypoint is the route's last one. */
   isFinalDestination: boolean;
 };
 
@@ -87,7 +118,13 @@ export type OffRouteEvent = {
   offRoute: boolean;
 };
 
+/**
+ * From {@link Navigation.addVoiceInstructionListener}.
+ *
+ * @group Events
+ */
 export type VoiceInstructionEvent = {
+  /** Plain text of the instruction, e.g. "In 500 feet, turn right onto Market Street". */
   text: string;
   /** Empty if the route has no SSML. */
   ssml: string;
