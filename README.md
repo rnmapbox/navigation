@@ -1,10 +1,14 @@
 # @rnmapbox/navigation
 
-_A community-supported, open-source React Native library for the [Mapbox Navigation SDK v3](https://docs.mapbox.com/navigation/) for iOS and Android, built on [`@rnmapbox/maps`](https://github.com/rnmapbox/maps)._
+[![npm](https://img.shields.io/npm/v/@rnmapbox/navigation)](https://www.npmjs.com/package/@rnmapbox/navigation) [![docs](https://img.shields.io/badge/docs-rnmapbox.github.io-blue)](https://rnmapbox.github.io/docs/navigation/overview) [![license](https://img.shields.io/npm/l/@rnmapbox/navigation)](LICENSE)
 
-It requests routes, runs an active-guidance session and reports route progress, and the Navigation SDK draws the route line, the puck and the navigation camera on a regular `@rnmapbox/maps` `MapView`. `<NavigationView>` shows the SDK's full-screen turn-by-turn UI instead.
+Turn-by-turn navigation for React Native, using the [Mapbox Navigation SDK v3](https://docs.mapbox.com/navigation/) on iOS and Android. Request routes, run active guidance with voice instructions and route progress events on your own [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) `MapView`, or drop in `<NavigationView>` for the SDK's full-screen navigation UI.
 
-> Status: early alpha, published to npm under the `next` tag. APIs may change between releases.
+- New Architecture (Fabric/TurboModules), React Native 0.79+
+- Expo config plugin for [development builds](https://docs.expo.dev/develop/development-builds/introduction/) (not Expo Go)
+- No secret downloads token needed on iOS or Android
+
+> Early alpha: APIs may change between releases.
 
 API reference: [rnmapbox.github.io/docs/navigation/api](https://rnmapbox.github.io/docs/navigation/api).
 
@@ -21,7 +25,7 @@ Navigation is billed per trip or MAU to the access token you pass, on top of Map
 ## Installation
 
 ```sh
-yarn add @rnmapbox/navigation@next @rnmapbox/maps
+yarn add @rnmapbox/navigation @rnmapbox/maps
 ```
 
 ### Expo
