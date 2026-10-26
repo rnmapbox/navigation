@@ -1,4 +1,5 @@
 const {
+  applyAndroidAutoManifest,
   applyCarPlayInfoPlist,
   applyPodfileModifications,
 } = require('../withMapboxNavigation');
@@ -96,5 +97,48 @@ describe('applyCarPlayInfoPlist', () => {
 
   it('throws without the scene-based life cycle', () => {
     expect(() => applyCarPlayInfoPlist({})).toThrow(/scene-based life cycle/);
+  });
+});
+
+describe('applyAndroidAutoManifest', () => {
+  const manifest = () => ({
+    manifest: {
+      '$': { 'xmlns:android': 'http://schemas.android.com/apk/res/android' },
+      'uses-permission': [
+        { $: { 'android:name': 'android.permission.INTERNET' } },
+      ],
+      'application': [
+        { $: { 'android:name': '.MainApplication' }, activity: [] },
+      ],
+    },
+  });
+
+  it('declares the car app service, permissions and metadata', () => {
+    const result = applyAndroidAutoManifest(manifest()).manifest;
+    expect(result['uses-permission'].map((p) => p.$['android:name'])).toEqual([
+      'android.permission.INTERNET',
+      'androidx.car.app.NAVIGATION_TEMPLATES',
+      'androidx.car.app.ACCESS_SURFACE',
+    ]);
+    const application = result.application[0];
+    expect(application.service).toEqual([
+      expect.objectContaining({
+        $: {
+          'android:name': 'com.rnmapbox.rnmbxnav.RNMBXNavigationCarAppService',
+          'android:exported': 'true',
+        },
+      }),
+    ]);
+    expect(application['meta-data'].map((m) => m.$['android:name'])).toEqual([
+      'com.google.android.gms.car.application',
+      'androidx.car.app.minCarApiLevel',
+    ]);
+  });
+
+  it('replaces the entries of a previous run', () => {
+    const once = applyAndroidAutoManifest(manifest());
+    expect(applyAndroidAutoManifest(JSON.parse(JSON.stringify(once)))).toEqual(
+      once
+    );
   });
 });

@@ -29,7 +29,8 @@
       [
         "@rnmapbox/navigation",
         {
-          "carPlay": true
+          "carPlay": true,
+          "androidAuto": true
         }
       ]
     ]

@@ -1,5 +1,7 @@
 const {
+  AndroidConfig,
   createRunOncePlugin,
+  withAndroidManifest,
   withEntitlementsPlist,
   withGradleProperties,
   withInfoPlist,
@@ -18,6 +20,8 @@ const DEFAULT_LOCATION_USAGE =
  *   `@rnmapbox/maps` plugin to match.
  * @property {string | false} [locationWhenInUsePermission] iOS `NSLocationWhenInUseUsageDescription`,
  *   `false` to leave it unset.
+ * @property {boolean} [androidAuto] Declares the Android Auto navigation app service, so Android Auto shows the
+ *   navigation map that `<CarMap>` adds to.
  * @property {boolean} [carPlay] Adds the CarPlay scene and the `com.apple.developer.carplay-maps` entitlement, so
  *   CarPlay shows the navigation session.
  */
@@ -108,10 +112,67 @@ function applyCarPlayInfoPlist(infoPlist) {
   return infoPlist;
 }
 
+const CAR_APP_SERVICE = 'com.rnmapbox.rnmbxnav.RNMBXNavigationCarAppService';
+
+/**
+ * Adds the Android Auto service, its permissions and metadata, replacing those of a previous run.
+ * @param {import('expo/config-plugins').AndroidConfig.Manifest.AndroidManifest} manifest
+ */
+function applyAndroidAutoManifest(manifest) {
+  const root = manifest.manifest;
+  const permissions = [
+    'androidx.car.app.NAVIGATION_TEMPLATES',
+    'androidx.car.app.ACCESS_SURFACE',
+  ];
+  root['uses-permission'] = [
+    ...(root['uses-permission'] ?? []).filter(
+      (permission) => !permissions.includes(permission.$['android:name'])
+    ),
+    ...permissions.map((name) => ({ $: { 'android:name': name } })),
+  ];
+  const application =
+    AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
+  const metaData = {
+    'com.google.android.gms.car.application': {
+      'android:resource': '@xml/rnmbxnav_automotive_app_desc',
+    },
+    'androidx.car.app.minCarApiLevel': { 'android:value': '1' },
+  };
+  application['meta-data'] = [
+    ...(application['meta-data'] ?? []).filter(
+      (item) => !(item.$['android:name'] in metaData)
+    ),
+    ...Object.entries(metaData).map(([name, value]) => ({
+      $: { 'android:name': name, ...value },
+    })),
+  ];
+  application.service = [
+    ...(application.service ?? []).filter(
+      (service) => service.$['android:name'] !== CAR_APP_SERVICE
+    ),
+    {
+      '$': { 'android:name': CAR_APP_SERVICE, 'android:exported': 'true' },
+      'intent-filter': [
+        {
+          action: [{ $: { 'android:name': 'androidx.car.app.CarAppService' } }],
+          category: [
+            { $: { 'android:name': 'androidx.car.app.category.NAVIGATION' } },
+          ],
+        },
+      ],
+    },
+  ];
+  return manifest;
+}
+
 /** @type {import('expo/config-plugins').ConfigPlugin<MapboxNavigationPluginProps | void>} */
 const withMapboxNavigation = (config, props) => {
-  const { RNMapboxNavigationVersion, locationWhenInUsePermission, carPlay } =
-    props ?? {};
+  const {
+    RNMapboxNavigationVersion,
+    locationWhenInUsePermission,
+    carPlay,
+    androidAuto,
+  } = props ?? {};
 
   config = withPodfile(config, (podfileConfig) => {
     podfileConfig.modResults.contents = applyPodfileModifications(
@@ -151,6 +212,15 @@ const withMapboxNavigation = (config, props) => {
     });
   }
 
+  if (androidAuto) {
+    config = withAndroidManifest(config, (manifestConfig) => {
+      manifestConfig.modResults = applyAndroidAutoManifest(
+        manifestConfig.modResults
+      );
+      return manifestConfig;
+    });
+  }
+
   if (RNMapboxNavigationVersion) {
     config = withGradleProperties(config, (gradleConfig) => {
       const key = 'RNMapboxNavigationVersion';
@@ -176,3 +246,4 @@ module.exports = createRunOncePlugin(
 );
 module.exports.applyPodfileModifications = applyPodfileModifications;
 module.exports.applyCarPlayInfoPlist = applyCarPlayInfoPlist;
+module.exports.applyAndroidAutoManifest = applyAndroidAutoManifest;
