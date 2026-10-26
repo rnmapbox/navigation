@@ -24,7 +24,16 @@ jobs:
       - name: Build package
         run: yarn prepare
       - name: Publish package on NPM
-        run: npm publish --provenance --access public ${{ github.event.release.prerelease && '--tag next' || '' }}
+        # Trusted publishing (OIDC) only authorizes `npm publish`, not `npm dist-tag`, so the tag is picked here.
+        # Before 1.0 every release, prereleases included, goes to `latest`.
+        run: |
+          tag=latest
+          if [ "$PRERELEASE" = true ] && [[ "$(node -p "require('./package.json').version")" != 0.* ]]; then
+            tag=next
+          fi
+          npm publish --provenance --access public --tag "$tag"
+        env:
+          PRERELEASE: ${{ github.event.release.prerelease }}
   notify-failure:
     runs-on: ubuntu-latest
     needs: build
