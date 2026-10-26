@@ -1,7 +1,7 @@
 {
   "name": "@rnmapbox/navigation",
-  "version": "0.1.0-alpha.1",
-  "description": "Thin React Native wrapper around the Mapbox Navigation SDK v3",
+  "version": "0.1.0-alpha.2",
+  "description": "Turn-by-turn navigation for React Native with the Mapbox Navigation SDK v3 (iOS & Android): routing, active guidance and a drop-in NavigationView. New Architecture and Expo config plugin, built on @rnmapbox/maps.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -45,11 +45,28 @@
   },
   "keywords": [
     "react-native",
+    "react-native-mapbox",
+    "rnmapbox",
+    "mapbox",
+    "mapbox-navigation",
+    "mapbox-navigation-sdk",
+    "navigation-sdk",
+    "turn-by-turn",
+    "turn-by-turn-navigation",
+    "navigation",
+    "directions",
+    "routing",
+    "route",
+    "guidance",
+    "voice-guidance",
+    "gps",
     "ios",
     "android",
-    "mapbox",
-    "navigation",
-    "turn-by-turn"
+    "expo",
+    "expo-config-plugin",
+    "new-architecture",
+    "fabric",
+    "turbo-module"
   ],
   "repository": {
     "type": "git",
@@ -60,7 +77,7 @@
   "bugs": {
     "url": "https://github.com/rnmapbox/navigation/issues"
   },
-  "homepage": "https://github.com/rnmapbox/navigation#readme",
+  "homepage": "https://rnmapbox.github.io/docs/navigation/overview",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
