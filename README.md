@@ -4,6 +4,8 @@ _A community-supported, open-source React Native library for the [Mapbox Navigat
 
 It requests routes, runs an active-guidance session and reports route progress, and the Navigation SDK draws the route line, the puck and the navigation camera on a regular `@rnmapbox/maps` `MapView`. `<NavigationView>` shows the SDK's full-screen turn-by-turn UI instead.
 
+<a href="https://rnmapbox.github.io/docs/navigation/overview"><img src="assets/navigation-demo.webp" width="270" alt="NavigationView on Android with a simulated route in San Francisco: maneuver banner, speed limit, route line and trip progress"></a>
+
 > Status: early alpha, published to npm under the `next` tag. APIs may change between releases.
 
 API reference: [rnmapbox.github.io/docs/navigation/api](https://rnmapbox.github.io/docs/navigation/api).
