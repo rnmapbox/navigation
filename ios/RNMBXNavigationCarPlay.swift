@@ -1,5 +1,6 @@
 import CarPlay
 import Combine
+import MapboxMaps
 import MapboxNavigationCore
 // Some CarPlayManagerDelegate requirements have their default implementations only in this SPI.
 @_spi(MapboxInternal) import MapboxNavigationUIKit
@@ -30,6 +31,17 @@ final class RNMBXNavigationCarPlay: NSObject {
   static let shared = RNMBXNavigationCarPlay()
 
   @Published private(set) var connected = false
+  /// The map the car screen shows; its id changes with every switch so `<CarMap>` re-adds its children.
+  @Published private(set) var carMap = CarMap(id: 0, activity: "browsing")
+
+  struct CarMap {
+    let id: Int32
+    let activity: String
+    weak var mapView: MapView?
+  }
+
+  private var nextCarMapId: Int32 = 1
+  private weak var browsingMapView: MapView?
 
   private var manager: CarPlayManager?
   private var subscriptions = Set<AnyCancellable>()
@@ -37,6 +49,7 @@ final class RNMBXNavigationCarPlay: NSObject {
   func connect(_ scene: CPTemplateApplicationScene, _ interfaceController: CPInterfaceController, _ window: CPWindow) {
     connected = true
     // The provider exists once JS has set the access token, which can be after the car connects.
+    _ = try? RNMBXNavigationSession.shared.mapboxNavigation()
     RNMBXNavigationSession.shared.$provider
       .compactMap { $0 }
       .first()
@@ -50,6 +63,8 @@ final class RNMBXNavigationCarPlay: NSObject {
     subscriptions.removeAll()
     manager?.templateApplicationScene(scene, didDisconnect: interfaceController, from: window)
     manager = nil
+    browsingMapView = nil
+    carMap = CarMap(id: 0, activity: "browsing")
     connected = false
   }
 
@@ -75,6 +90,17 @@ final class RNMBXNavigationCarPlay: NSObject {
       .store(in: &subscriptions)
   }
 
+  /// For the `rnmbxnavcar:<id>` map view factory; nil once the car screen has moved on to another map.
+  func mapView(forCarMapId id: Int32) -> MapView? {
+    carMap.id == id ? carMap.mapView : nil
+  }
+
+  private func show(_ mapView: MapView?, activity: String) {
+    guard let mapView else { return }
+    carMap = CarMap(id: nextCarMapId, activity: activity, mapView: mapView)
+    nextCarMapId += 1
+  }
+
   private func followGuidance(_ guiding: Bool) {
     guard let manager else { return }
     if guiding, manager.carPlayNavigationViewController == nil {
@@ -87,8 +113,25 @@ final class RNMBXNavigationCarPlay: NSObject {
 }
 
 extension RNMBXNavigationCarPlay: CarPlayManagerDelegate {
+  nonisolated func carPlayManager(_ carPlayManager: CarPlayManager, didSetup navigationMapView: NavigationMapView) {
+    MainActor.assumeIsolated {
+      browsingMapView = navigationMapView.mapView
+      show(navigationMapView.mapView, activity: "browsing")
+    }
+  }
+
+  nonisolated func carPlayManager(
+    _ carPlayManager: CarPlayManager,
+    willPresent navigationViewController: CarPlayNavigationViewController
+  ) {
+    MainActor.assumeIsolated {
+      show(navigationViewController.navigationMapView?.mapView, activity: "navigating")
+    }
+  }
+
   nonisolated func carPlayManagerDidEndNavigation(_ carPlayManager: CarPlayManager, byCanceling canceled: Bool) {
     MainActor.assumeIsolated {
+      show(browsingMapView, activity: "browsing")
       // Ending the trip on the car ends it on the phone too; it already has if the phone stopped it.
       if case .activeGuidance = RNMBXNavigationSession.shared.provider?.mapboxNavigation.tripSession().currentSession.state {
         RNMBXNavigationSession.shared.stop()

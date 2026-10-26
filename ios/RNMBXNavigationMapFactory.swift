@@ -14,10 +14,25 @@ public final class RNMBXNavigationMapFactory: NSObject {
   /// Keep in sync with `NAVIGATION_MAP_VIEW_IMPL` in src/index.ts.
   @objc public static let mapViewImpl = "rnmbxnav"
 
+  /// Keep in sync with `CAR_MAP_VIEW_IMPL` in src/CarMap.tsx.
+  @objc public static let carMapViewImpl = "rnmbxnavcar"
+
   @objc public static func register() {
     RNMBXMapViewFactory.register(mapViewImpl, factory: { _, parent in
       MainActor.assumeIsolated { makeMapView(in: parent) }
     })
+    RNMBXMapViewFactory.register(carMapViewImpl, factory: { impl, parent in
+      MainActor.assumeIsolated { carMapView(impl, for: parent) }
+    })
+  }
+
+  /// `impl` is `rnmbxnavcar:<id>`; the car screen's map stays where it is and `parent` only adds its children.
+  @MainActor private static func carMapView(_ impl: String, for parent: RNMBXMapView) -> MapView? {
+    guard let id = impl.split(separator: ":").last.flatMap({ Int32($0) }),
+          let mapView = RNMBXNavigationCarPlay.shared.mapView(forCarMapId: id)
+    else { return nil }
+    parent.ownsMapView = false
+    return mapView
   }
 
   @MainActor private static func makeMapView(in parent: RNMBXMapView) -> MapView {

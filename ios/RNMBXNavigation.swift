@@ -14,6 +14,7 @@ public final class RNMBXNavigation: NSObject {
   @objc public var onVoiceInstruction: (([String: Any]) -> Void)?
   @objc public var onRouteChange: ((RNMBXNavigationRoute, String) -> Void)?
   @objc public var onCarPlayConnectionChange: (([String: Any]) -> Void)?
+  @objc public var onCarMapChange: (([String: Any]) -> Void)?
 
   @MainActor private var subscriptions = Set<AnyCancellable>()
 
@@ -22,6 +23,7 @@ public final class RNMBXNavigation: NSObject {
   private var _cameraState = "idle"
   private var _voiceMuted = false
   private var _carPlayConnected = false
+  private var _carMap: [String: Any] = ["id": 0, "activity": "browsing"]
 
   override public init() {
     super.init()
@@ -79,6 +81,15 @@ public final class RNMBXNavigation: NSObject {
           self.onCarPlayConnectionChange?(["connected": connected])
         }
         .store(in: &self.subscriptions)
+      RNMBXNavigationCarPlay.shared.$carMap
+        .removeDuplicates { $0.id == $1.id }
+        .sink { [weak self] carMap in
+          guard let self else { return }
+          let event: [String: Any] = ["id": carMap.id, "activity": carMap.activity]
+          self.stateLock.withLock { self._carMap = event }
+          self.onCarMapChange?(event)
+        }
+        .store(in: &self.subscriptions)
     }
   }
 
@@ -96,6 +107,9 @@ public final class RNMBXNavigation: NSObject {
   @objc public func setAccessToken(_ accessToken: String) {
     Task { @MainActor in
       RNMBXNavigationSession.shared.accessToken = accessToken
+      if RNMBXNavigationCarPlay.shared.connected {
+        _ = try? RNMBXNavigationSession.shared.mapboxNavigation()
+      }
     }
   }
 
@@ -226,6 +240,10 @@ public final class RNMBXNavigation: NSObject {
 
   @objc public func isVoiceMuted() -> Bool {
     stateLock.withLock { _voiceMuted }
+  }
+
+  @objc public func carMap() -> [String: Any] {
+    stateLock.withLock { _carMap }
   }
 
   @objc public func isCarPlayConnected() -> Bool {

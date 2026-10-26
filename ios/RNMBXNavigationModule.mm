@@ -45,6 +45,9 @@
     _navigation.onCarPlayConnectionChange = ^(NSDictionary *event) {
       [weakSelf emitOnCarPlayConnectionChange:event];
     };
+    _navigation.onCarMapChange = ^(NSDictionary *event) {
+      [weakSelf emitOnCarMapChange:event];
+    };
   }
   return self;
 }
@@ -102,6 +105,11 @@
 - (NSNumber *)isCarPlayConnected
 {
   return @([_navigation isCarPlayConnected]);
+}
+
+- (NSDictionary *)getCarMap
+{
+  return [_navigation carMap];
 }
 
 - (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime
