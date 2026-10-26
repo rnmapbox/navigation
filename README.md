@@ -4,6 +4,8 @@
 
 Turn-by-turn navigation for React Native, using the [Mapbox Navigation SDK v3](https://docs.mapbox.com/navigation/) on iOS and Android. Request routes, run active guidance with voice instructions and route progress events on your own [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) `MapView`, or drop in `<NavigationView>` for the SDK's full-screen navigation UI.
 
+<a href="https://rnmapbox.github.io/docs/navigation/overview"><img src="assets/navigation-demo.webp" width="270" alt="NavigationView on Android with a simulated route in San Francisco: maneuver banner, speed limit, route line and trip progress"></a>
+
 - New Architecture (Fabric/TurboModules), React Native 0.79+
 - Expo config plugin for [development builds](https://docs.expo.dev/develop/development-builds/introduction/) (not Expo Go)
 - No secret downloads token needed on iOS or Android
