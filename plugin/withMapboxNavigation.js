@@ -1,5 +1,6 @@
 const {
   createRunOncePlugin,
+  withEntitlementsPlist,
   withGradleProperties,
   withInfoPlist,
   withPodfile,
@@ -17,6 +18,8 @@ const DEFAULT_LOCATION_USAGE =
  *   `@rnmapbox/maps` plugin to match.
  * @property {string | false} [locationWhenInUsePermission] iOS `NSLocationWhenInUseUsageDescription`,
  *   `false` to leave it unset.
+ * @property {boolean} [carPlay] Adds the CarPlay scene and the `com.apple.developer.carplay-maps` entitlement, so
+ *   CarPlay shows the navigation session.
  */
 
 /**
@@ -80,9 +83,34 @@ function applyPodfileModifications(podfile, { RNMapboxNavigationVersion }) {
   return src;
 }
 
+const CARPLAY_SCENE_ROLE = 'CPTemplateApplicationSceneSessionRoleApplication';
+
+/**
+ * Adds the CarPlay scene to `UIApplicationSceneManifest`, replacing one of a previous run.
+ * @param {Record<string, any>} infoPlist
+ */
+function applyCarPlayInfoPlist(infoPlist) {
+  const configurations =
+    infoPlist.UIApplicationSceneManifest?.UISceneConfigurations;
+  // Without the phone scene, declaring any scene would leave the app delegate's window unshown.
+  if (!configurations?.UIWindowSceneSessionRoleApplication) {
+    throw new Error(
+      `${pkg.name}: carPlay needs the scene-based life cycle (UIWindowSceneSessionRoleApplication in UIApplicationSceneManifest), which Expo SDK 58 sets up`
+    );
+  }
+  configurations[CARPLAY_SCENE_ROLE] = [
+    {
+      UISceneClassName: 'CPTemplateApplicationScene',
+      UISceneConfigurationName: 'CarPlay',
+      UISceneDelegateClassName: 'RNMBXNavigationCarPlaySceneDelegate',
+    },
+  ];
+  return infoPlist;
+}
+
 /** @type {import('expo/config-plugins').ConfigPlugin<MapboxNavigationPluginProps | void>} */
 const withMapboxNavigation = (config, props) => {
-  const { RNMapboxNavigationVersion, locationWhenInUsePermission } =
+  const { RNMapboxNavigationVersion, locationWhenInUsePermission, carPlay } =
     props ?? {};
 
   config = withPodfile(config, (podfileConfig) => {
@@ -93,6 +121,15 @@ const withMapboxNavigation = (config, props) => {
     return podfileConfig;
   });
 
+  config = withInfoPlist(config, (plistConfig) => {
+    // The SDK's voice controller asserts on this in debug builds as soon as guidance starts.
+    const modes = plistConfig.modResults.UIBackgroundModes ?? [];
+    if (!modes.includes('audio')) {
+      plistConfig.modResults.UIBackgroundModes = [...modes, 'audio'];
+    }
+    return plistConfig;
+  });
+
   if (locationWhenInUsePermission !== false) {
     config = withInfoPlist(config, (plistConfig) => {
       plistConfig.modResults.NSLocationWhenInUseUsageDescription =
@@ -100,6 +137,17 @@ const withMapboxNavigation = (config, props) => {
         plistConfig.modResults.NSLocationWhenInUseUsageDescription ??
         DEFAULT_LOCATION_USAGE;
       return plistConfig;
+    });
+  }
+
+  if (carPlay) {
+    config = withInfoPlist(config, (plistConfig) => {
+      plistConfig.modResults = applyCarPlayInfoPlist(plistConfig.modResults);
+      return plistConfig;
+    });
+    config = withEntitlementsPlist(config, (entitlementsConfig) => {
+      entitlementsConfig.modResults['com.apple.developer.carplay-maps'] = true;
+      return entitlementsConfig;
     });
   }
 
@@ -127,3 +175,4 @@ module.exports = createRunOncePlugin(
   pkg.version
 );
 module.exports.applyPodfileModifications = applyPodfileModifications;
+module.exports.applyCarPlayInfoPlist = applyCarPlayInfoPlist;

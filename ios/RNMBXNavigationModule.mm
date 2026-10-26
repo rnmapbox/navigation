@@ -42,6 +42,9 @@
     _navigation.onVoiceInstruction = ^(NSDictionary *event) {
       [weakSelf emitOnVoiceInstruction:event];
     };
+    _navigation.onCarPlayConnectionChange = ^(NSDictionary *event) {
+      [weakSelf emitOnCarPlayConnectionChange:event];
+    };
   }
   return self;
 }
@@ -94,6 +97,11 @@
 - (NSNumber *)isVoiceMuted
 {
   return @([_navigation isVoiceMuted]);
+}
+
+- (NSNumber *)isCarPlayConnected
+{
+  return @([_navigation isCarPlayConnected]);
 }
 
 - (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime

@@ -13,6 +13,7 @@ public final class RNMBXNavigation: NSObject {
   @objc public var onOffRouteChange: (([String: Any]) -> Void)?
   @objc public var onVoiceInstruction: (([String: Any]) -> Void)?
   @objc public var onRouteChange: ((RNMBXNavigationRoute, String) -> Void)?
+  @objc public var onCarPlayConnectionChange: (([String: Any]) -> Void)?
 
   @MainActor private var subscriptions = Set<AnyCancellable>()
 
@@ -20,6 +21,7 @@ public final class RNMBXNavigation: NSObject {
   private let stateLock = NSLock()
   private var _cameraState = "idle"
   private var _voiceMuted = false
+  private var _carPlayConnected = false
 
   override public init() {
     super.init()
@@ -67,6 +69,14 @@ public final class RNMBXNavigation: NSObject {
       session.routeChanges
         .sink { [weak self] routes, reason in
           self?.onRouteChange?(RNMBXNavigationRoute(routes), reason)
+        }
+        .store(in: &self.subscriptions)
+      RNMBXNavigationCarPlay.shared.$connected
+        .removeDuplicates()
+        .sink { [weak self] connected in
+          guard let self else { return }
+          self.stateLock.withLock { self._carPlayConnected = connected }
+          self.onCarPlayConnectionChange?(["connected": connected])
         }
         .store(in: &self.subscriptions)
     }
@@ -216,6 +226,10 @@ public final class RNMBXNavigation: NSObject {
 
   @objc public func isVoiceMuted() -> Bool {
     stateLock.withLock { _voiceMuted }
+  }
+
+  @objc public func isCarPlayConnected() -> Bool {
+    stateLock.withLock { _carPlayConnected }
   }
 
   private static func name(_ state: NavigationCameraState) -> String {

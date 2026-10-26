@@ -26,6 +26,7 @@ import type { FeatureCollection } from 'geojson';
 
 import { StatusBar } from 'expo-status-bar';
 
+import CarPlayScreen from './CarPlayScreen';
 import env from './env.json';
 
 // Mapbox HQ (San Francisco) to the Ferry Building.
@@ -65,6 +66,15 @@ function formatDuration(seconds: number) {
 }
 
 export default function App() {
+  const [screen, setScreen] = useState<'navigation' | 'carPlay'>('navigation');
+  return screen === 'carPlay' ? (
+    <CarPlayScreen onBack={() => setScreen('navigation')} />
+  ) : (
+    <NavigationScreen onOpenCarPlay={() => setScreen('carPlay')} />
+  );
+}
+
+function NavigationScreen({ onOpenCarPlay }: { onOpenCarPlay: () => void }) {
   const [route, setRoute] = useState<Route>();
   const [progress, setProgress] = useState<RouteProgressEvent>();
   const [navigating, setNavigating] = useState(false);
@@ -211,6 +221,7 @@ export default function App() {
               disabled={!route}
               testID="start-simulation"
             />
+            <Chip label="CarPlay" onPress={onOpenCarPlay} testID="carplay" />
           </>
         ) : (
           <>

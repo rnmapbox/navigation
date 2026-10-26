@@ -1,4 +1,7 @@
-const { applyPodfileModifications } = require('../withMapboxNavigation');
+const {
+  applyCarPlayInfoPlist,
+  applyPodfileModifications,
+} = require('../withMapboxNavigation');
 
 const PODFILE = `platform :ios, '16.4'
 
@@ -49,5 +52,49 @@ target 'App' do`);
     expect(() => applyPodfileModifications('platform :ios', {})).toThrow(
       /no line matching/
     );
+  });
+});
+
+describe('applyCarPlayInfoPlist', () => {
+  const phoneScene = {
+    UISceneConfigurationName: 'Default Configuration',
+    UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).SceneDelegate',
+  };
+  const infoPlist = () => ({
+    UIApplicationSceneManifest: {
+      UIApplicationSupportsMultipleScenes: false,
+      UISceneConfigurations: {
+        UIWindowSceneSessionRoleApplication: [phoneScene],
+      },
+    },
+  });
+
+  it('adds the CarPlay scene next to the phone scene', () => {
+    const configurations =
+      applyCarPlayInfoPlist(infoPlist()).UIApplicationSceneManifest
+        .UISceneConfigurations;
+    expect(configurations.UIWindowSceneSessionRoleApplication).toEqual([
+      phoneScene,
+    ]);
+    expect(
+      configurations.CPTemplateApplicationSceneSessionRoleApplication
+    ).toEqual([
+      {
+        UISceneClassName: 'CPTemplateApplicationScene',
+        UISceneConfigurationName: 'CarPlay',
+        UISceneDelegateClassName: 'RNMBXNavigationCarPlaySceneDelegate',
+      },
+    ]);
+  });
+
+  it('replaces the scene of a previous run', () => {
+    const once = applyCarPlayInfoPlist(infoPlist());
+    expect(applyCarPlayInfoPlist(JSON.parse(JSON.stringify(once)))).toEqual(
+      once
+    );
+  });
+
+  it('throws without the scene-based life cycle', () => {
+    expect(() => applyCarPlayInfoPlist({})).toThrow(/scene-based life cycle/);
   });
 });

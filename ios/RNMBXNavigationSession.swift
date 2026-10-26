@@ -27,7 +27,7 @@ final class RNMBXNavigationSession {
     didSet { applyVoiceMuted() }
   }
 
-  private(set) var provider: MapboxNavigationProvider?
+  @Published private(set) var provider: MapboxNavigationProvider?
   private var subscriptions = Set<AnyCancellable>()
   /// Kept until navigation stops, whether or not JS releases its `Route`.
   private var guidanceRoute: RNMBXNavigationRoute?

@@ -213,6 +213,23 @@ export const Navigation = {
   isVoiceMuted(): boolean {
     return NativeNavigation.isVoiceMuted();
   },
+
+  /**
+   * Whether a CarPlay screen shows the navigation session; see the `carPlay` option of the Expo config plugin.
+   * Always `false` on Android.
+   */
+  isCarPlayConnected(): boolean {
+    return NativeNavigation.isCarPlayConnected();
+  },
+
+  /** Called when a CarPlay screen connects or disconnects. */
+  addCarPlayConnectionListener(
+    listener: (connected: boolean) => void
+  ): EventSubscription {
+    return NativeNavigation.onCarPlayConnectionChange((event) =>
+      listener(event.connected)
+    );
+  },
 };
 
 /**

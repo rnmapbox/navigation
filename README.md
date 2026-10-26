@@ -48,11 +48,13 @@ Use a [development build](https://docs.expo.dev/develop/development-builds/intro
 Then run `npx expo prebuild --clean`. The `@rnmapbox/navigation` plugin only changes iOS:
 - sets `$RNMapboxMapsSwiftPackageManager = { link: false }` in the Podfile, see [iOS](#ios);
 - adds the Navigation SDK's binary frameworks to `rnmapbox-maps`' framework search paths, which Xcode 26 needs with React Native 0.88+;
-- sets `NSLocationWhenInUseUsageDescription`, unless `locationWhenInUsePermission` is `false`.
+- sets `NSLocationWhenInUseUsageDescription`, unless `locationWhenInUsePermission` is `false`;
+- adds `audio` to `UIBackgroundModes`, for voice instructions in the background;
+- with `carPlay: true`, adds the CarPlay scene and the `com.apple.developer.carplay-maps` entitlement, see [CarPlay](#carplay).
 
 On Android the `@rnmapbox/maps` plugin already adds the Mapbox Maven repository, and the Navigation SDK's manifest adds the location, foreground service and notification permissions.
 
-Options: `RNMapboxNavigationVersion` sets the Navigation SDK version on both platforms (set the maps plugin's `RNMapboxMapsVersion` to the matching 11.N), and `locationWhenInUsePermission` sets the usage string.
+Options: `carPlay` enables CarPlay, `RNMapboxNavigationVersion` sets the Navigation SDK version on both platforms (set the maps plugin's `RNMapboxMapsVersion` to the matching 11.N), and `locationWhenInUsePermission` sets the usage string.
 
 ### iOS
 
@@ -340,6 +342,14 @@ It uses the app's single navigation session:
 With `waypoints` it also requests alternative routes. Navigation maps draw the alternatives of the active guidance, and tapping one switches guidance to it, which `addRouteChangeListener` reports with `reason: 'alternative'`.
 
 Use it as is, or copy it as a starting point for your own UI.
+
+### CarPlay
+
+Experimental, iOS only. With the Expo plugin's `carPlay: true`, CarPlay shows the Navigation SDK's own CarPlay UI for the same navigation session as the phone: the map while idle, and turn-by-turn guidance while guidance runs. Ending the trip on CarPlay stops navigation. `Navigation.isCarPlayConnected()` and `Navigation.addCarPlayConnectionListener` report the connection.
+
+- It needs the scene-based life cycle, which Expo SDK 58 apps have. Bare apps add the CarPlay scene to `UIApplicationSceneManifest` themselves, with `RNMBXNavigationCarPlaySceneDelegate` as its delegate class.
+- CarPlay stays blank until JS calls `Navigation.setAccessToken`.
+- Running on a device or in a car needs the CarPlay navigation entitlement from Apple; the iOS Simulator (I/O › External Displays › CarPlay) doesn't.
 
 ## Example app
 

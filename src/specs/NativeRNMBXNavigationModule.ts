@@ -137,6 +137,15 @@ export type CameraStateEvent = {
   state: string;
 };
 
+/**
+ * From {@link Navigation.addCarPlayConnectionListener}.
+ *
+ * @group Events
+ */
+export type CarPlayConnectionEvent = {
+  connected: boolean;
+};
+
 export interface Spec extends TurboModule {
   setAccessToken(accessToken: string): void;
   getSdkVersion(): string;
@@ -149,6 +158,7 @@ export interface Spec extends TurboModule {
   getCameraState(): string;
   setVoiceMuted(muted: boolean): void;
   isVoiceMuted(): boolean;
+  isCarPlayConnected(): boolean;
 
   readonly onRouteProgress: CodegenTypes.EventEmitter<RouteProgressEvent>;
   readonly onCameraStateChange: CodegenTypes.EventEmitter<CameraStateEvent>;
@@ -156,6 +166,7 @@ export interface Spec extends TurboModule {
   readonly onArrive: CodegenTypes.EventEmitter<ArriveEvent>;
   readonly onOffRouteChange: CodegenTypes.EventEmitter<OffRouteEvent>;
   readonly onVoiceInstruction: CodegenTypes.EventEmitter<VoiceInstructionEvent>;
+  readonly onCarPlayConnectionChange: CodegenTypes.EventEmitter<CarPlayConnectionEvent>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('RNMBXNavigationModule');

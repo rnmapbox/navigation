@@ -7,6 +7,7 @@ export {
 export type {
   ArriveEvent,
   BannerComponent,
+  CarPlayConnectionEvent,
   Lane,
   LocationEvent,
   RouteProgressEvent,

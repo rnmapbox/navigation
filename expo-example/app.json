@@ -26,7 +26,12 @@
           "RNMapboxMapsVersion": "11.33.0"
         }
       ],
-      "@rnmapbox/navigation"
+      [
+        "@rnmapbox/navigation",
+        {
+          "carPlay": true
+        }
+      ]
     ]
   }
 }

@@ -178,6 +178,8 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
 
   override fun isVoiceMuted(): Boolean = voiceMuted
 
+  override fun isCarPlayConnected(): Boolean = false
+
   override fun invalidate() {
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = null
