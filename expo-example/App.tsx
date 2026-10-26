@@ -26,6 +26,7 @@ import type { FeatureCollection } from 'geojson';
 
 import { StatusBar } from 'expo-status-bar';
 
+import CarMapLayers from './CarMapLayers';
 import CarPlayScreen from './CarPlayScreen';
 import env from './env.json';
 
@@ -67,10 +68,15 @@ function formatDuration(seconds: number) {
 
 export default function App() {
   const [screen, setScreen] = useState<'navigation' | 'carPlay'>('navigation');
-  return screen === 'carPlay' ? (
-    <CarPlayScreen onBack={() => setScreen('navigation')} />
-  ) : (
-    <NavigationScreen onOpenCarPlay={() => setScreen('carPlay')} />
+  return (
+    <>
+      {screen === 'carPlay' ? (
+        <CarPlayScreen onBack={() => setScreen('navigation')} />
+      ) : (
+        <NavigationScreen onOpenCarPlay={() => setScreen('carPlay')} />
+      )}
+      <CarMapLayers />
+    </>
   );
 }
 

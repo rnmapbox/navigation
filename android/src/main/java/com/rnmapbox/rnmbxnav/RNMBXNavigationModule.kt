@@ -180,6 +180,11 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
 
   override fun isCarPlayConnected(): Boolean = false
 
+  override fun getCarMap(): WritableMap = Arguments.createMap().apply {
+    putInt("id", 0)
+    putString("activity", "browsing")
+  }
+
   override fun invalidate() {
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = null

@@ -7,6 +7,7 @@ export {
 export type {
   ArriveEvent,
   BannerComponent,
+  CarMapEvent,
   CarPlayConnectionEvent,
   Lane,
   LocationEvent,
@@ -44,3 +45,9 @@ export {
 } from './NavigationViewport';
 
 export { Navigation as default } from './Navigation';
+export {
+  CarMap,
+  CAR_MAP_VIEW_IMPL,
+  type CarMapActivity,
+  type CarMapProps,
+} from './CarMap';
