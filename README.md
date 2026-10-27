@@ -45,16 +45,15 @@ Use a [development build](https://docs.expo.dev/develop/development-builds/intro
 }
 ```
 
-Then run `npx expo prebuild --clean`. The `@rnmapbox/navigation` plugin only changes iOS:
+Then run `npx expo prebuild --clean`. On iOS the `@rnmapbox/navigation` plugin:
 - sets `$RNMapboxMapsSwiftPackageManager = { link: false }` in the Podfile, see [iOS](#ios);
 - adds the Navigation SDK's binary frameworks to `rnmapbox-maps`' framework search paths, which Xcode 26 needs with React Native 0.88+;
 - sets `NSLocationWhenInUseUsageDescription`, unless `locationWhenInUsePermission` is `false`;
-- adds `audio` to `UIBackgroundModes`, for voice instructions in the background;
-- with `carPlay: true`, adds the CarPlay scene and the `com.apple.developer.carplay-maps` entitlement, see [CarPlay](#carplay).
+- with `carPlay: true`, adds the CarPlay scene and the `com.apple.developer.carplay-maps` entitlement, and with `carPlayRoot: true` also hands the `AppDelegate.swift` React Native factory to CarPlay, see [CarPlay](#carplay).
 
-On Android the `@rnmapbox/maps` plugin already adds the Mapbox Maven repository, and the Navigation SDK's manifest adds the location, foreground service and notification permissions.
+On Android the `@rnmapbox/maps` plugin already adds the Mapbox Maven repository, and the Navigation SDK's manifest adds the location, foreground service and notification permissions. With `androidAuto: true` the plugin adds the Android Auto service, its metadata and the `androidx.car.app` navigation and surface permissions, see [Android Auto](#android-auto).
 
-Options: `carPlay` enables CarPlay, `RNMapboxNavigationVersion` sets the Navigation SDK version on both platforms (set the maps plugin's `RNMapboxMapsVersion` to the matching 11.N), and `locationWhenInUsePermission` sets the usage string.
+Options: `carPlay`, `carPlayRoot` and `androidAuto` as above, `RNMapboxNavigationVersion` sets the Navigation SDK version on both platforms (set the maps plugin's `RNMapboxMapsVersion` to the matching 11.N), and `locationWhenInUsePermission` sets the usage string. Turning `carPlay`, `carPlayRoot` or `androidAuto` off removes what they added on the next prebuild, except the entitlement and the permissions; `prebuild --clean` removes those too.
 
 ### iOS
 
@@ -354,23 +353,44 @@ Experimental, iOS only. With the Expo plugin's `carPlay: true`, CarPlay shows th
 - The app needs the `com.apple.developer.carplay-maps` entitlement (the plugin adds it) and an `application-identifier`, which code signing adds. Running on a device or in a car needs Apple to grant the CarPlay navigation entitlement to your team; the iOS Simulator (I/O › External Displays › CarPlay) doesn't.
 - In the iOS 26.4 and 26.5 simulators, CarPlay's host process crashes as soon as a map template appears, an Apple bug (see [mapbox-navigation-ios#4827](https://github.com/mapbox/mapbox-navigation-ios/issues/4827)). For development, `scripts/carplay-simulator-shim/shim.sh inject <UDID>` injects a stub into that simulator's CarPlay host, and `shim.sh cleanup <UDID>` removes it. It only affects the simulator and is not part of the package.
 
-`<CarMap>` adds its `@rnmapbox/maps` children (sources, layers, images) to the car screen's map. On iOS, render it in a CarPlay root, which stays mounted while CarPlay is connected and starts React Native even when CarPlay launched the app without its phone UI:
+### CarMap
+
+`<CarMap>` adds its `@rnmapbox/maps` children (sources, layers, images) to the car screen's map, on CarPlay and Android Auto. Its children can be a function of `activity` (`"browsing"` or `"navigating"`); it remounts them whenever the car screen switches maps, e.g. when guidance starts.
+
+On iOS, also register it as the CarPlay root. That root stays mounted while CarPlay is connected and starts React Native when CarPlay launches the app without its phone UI. It needs the plugin's `carPlayRoot: true`, or `RNMBXNavigationCarPlayRoot.reactNativeFactory = factory` in a bare app's delegate. While the root is mounted, `<CarMap>` elsewhere in the app renders nothing, so the same component can go in both places:
 
 ```tsx
-// index.ts, next to registerRootComponent(App)
-Navigation.registerCarPlayRoot(() => (
-  <CarMap>
-    <ShapeSource id="stops" shape={stops}>
-      <CircleLayer
-        id="stops"
-        style={{ circleColor: '#d946ef', circleEmissiveStrength: 1 }}
-      />
-    </ShapeSource>
-  </CarMap>
-));
+// index.ts: CarPlay looks the root up before anything else loads.
+registerRootComponent(App); // App renders <CarMapLayers /> for Android Auto
+Navigation.registerCarPlayRoot(CarMapLayers);
+
+function CarMapLayers() {
+  return (
+    <CarMap>
+      <ShapeSource id="stops" shape={stops}>
+        <CircleLayer
+          id="stops"
+          style={{ circleColor: '#d946ef', circleEmissiveStrength: 1 }}
+        />
+      </ShapeSource>
+    </CarMap>
+  );
+}
 ```
 
-The plugin's `carPlay` option hands the React Native factory of a Swift `AppDelegate` to the CarPlay scene, which creates that root on it; other app delegates set `RNMBXNavigationCarPlayRoot.reactNativeFactory = factory` themselves. Android Auto has no separate root: render `<CarMap>` in the app.
+- The navigation styles light the map at night; set `circleEmissiveStrength` (and the other `*EmissiveStrength` properties) to 1 to keep colors.
+- After CarPlay started React Native, a phone cold start from a link doesn't reach `Linking.getInitialURL()`: the React Native host already exists, without the phone scene's launch options. The `url` event still fires for links that arrive later.
+
+### Android Auto
+
+Experimental. With the plugin's `androidAuto: true`, Android Auto shows a navigation map for the same session as the phone, following the location while guidance runs, and `<CarMap>` adds to it. It isn't a complete navigation app yet: no `NavigationManager` (Android Auto doesn't know a trip is running), no turn-by-turn templates, and it hasn't been tested on a head unit. Android Auto starts no JS of its own, so `<CarMap>` renders once the app's React Native is running.
+
+In debug builds, a car screen preview helps without a head unit:
+
+```sh
+adb shell am broadcast -a com.rnmapbox.navigation.DEBUG_CAR_PREVIEW --ez show true \
+  --ef latitude 37.789 --ef longitude -122.403 --ef zoom 15 --ez follow false
+```
 
 ## Example app
 
