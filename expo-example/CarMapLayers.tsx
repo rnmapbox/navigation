@@ -23,11 +23,13 @@ const POIS: FeatureCollection = {
   })),
 };
 
+// The navigation styles light the map at night; emissive layers keep their colors.
 const CIRCLE_STYLE: CircleLayerStyle = {
   circleRadius: 14,
   circleColor: '#d946ef',
   circleStrokeWidth: 3,
   circleStrokeColor: '#ffffff',
+  circleEmissiveStrength: 1,
 };
 
 const NAVIGATING_CIRCLE_STYLE: CircleLayerStyle = {
@@ -42,6 +44,7 @@ const CAR_RING_STYLE: CircleLayerStyle = {
   circleStrokeWidth: 4,
   circleStrokeColor: '#d946ef',
   circlePitchAlignment: 'map',
+  circleEmissiveStrength: 1,
 };
 
 const LABEL_STYLE: SymbolLayerStyle = {
@@ -50,9 +53,10 @@ const LABEL_STYLE: SymbolLayerStyle = {
   textOffset: [0, 1.4],
   textHaloColor: '#ffffff',
   textHaloWidth: 1.5,
+  textEmissiveStrength: 1,
 };
 
-/** Rendered once at the app root; shows on the car screen only. */
+/** The CarPlay root on iOS (see index.ts), rendered in the app on Android; shows on the car screen only. */
 export default function CarMapLayers() {
   const [carPosition, setCarPosition] = useState<Position>();
 

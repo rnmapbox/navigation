@@ -1,5 +1,6 @@
 const {
   applyAndroidAutoManifest,
+  applyCarPlayAppDelegate,
   applyCarPlayInfoPlist,
   applyPodfileModifications,
 } = require('../withMapboxNavigation');
@@ -97,6 +98,55 @@ describe('applyCarPlayInfoPlist', () => {
 
   it('throws without the scene-based life cycle', () => {
     expect(() => applyCarPlayInfoPlist({})).toThrow(/scene-based life cycle/);
+  });
+});
+
+describe('applyCarPlayAppDelegate', () => {
+  const APP_DELEGATE = `internal import Expo
+import React
+import ReactAppDependencyProvider
+
+@main
+class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
+  public override func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+  ) -> Bool {
+    let delegate = ReactNativeDelegate()
+    let factory = ExpoReactNativeFactory(delegate: delegate)
+
+    reactNativeDelegate = delegate
+    reactNativeFactory = factory
+
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+}
+`;
+
+  it('imports the module and hands the factory to the CarPlay root', () => {
+    expect(applyCarPlayAppDelegate(APP_DELEGATE)).toContain(`import React
+// @generated begin @rnmapbox/navigation-import
+import rnmapbox_navigation
+// @generated end @rnmapbox/navigation-import
+import ReactAppDependencyProvider`);
+    expect(applyCarPlayAppDelegate(APP_DELEGATE))
+      .toContain(`    reactNativeFactory = factory
+// @generated begin @rnmapbox/navigation-carplay-root
+    RNMBXNavigationCarPlayRoot.reactNativeFactory = factory
+// @generated end @rnmapbox/navigation-carplay-root
+
+    return super.application`);
+  });
+
+  it('replaces the blocks of a previous run', () => {
+    const once = applyCarPlayAppDelegate(APP_DELEGATE);
+    expect(applyCarPlayAppDelegate(once)).toBe(once);
+  });
+
+  it('throws without the factory assignment', () => {
+    expect(() => applyCarPlayAppDelegate('import React\n')).toThrow(
+      /AppDelegate\.swift/
+    );
   });
 });
 

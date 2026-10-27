@@ -1,4 +1,5 @@
-import type { EventSubscription } from 'react-native';
+import type { ComponentType } from 'react';
+import { AppRegistry, type EventSubscription } from 'react-native';
 
 import NativeNavigation, {
   type ArriveEvent,
@@ -34,6 +35,12 @@ export type StartActiveGuidanceOptions = {
  * @group Core
  */
 export type CameraState = 'following' | 'overview' | 'idle';
+
+/** Keep in sync with `RNMBXNavigationCarPlayRoot.moduleName` in ios/. */
+const CARPLAY_ROOT_MODULE = 'RNMBXNavigationCarPlayRoot';
+
+// iOS mounts this module whenever CarPlay connects, also in apps that never call `registerCarPlayRoot`.
+AppRegistry.registerComponent(CARPLAY_ROOT_MODULE, () => () => null);
 
 const routeChangeListeners = new Set<(event: RouteChangeEvent) => void>();
 
@@ -229,6 +236,16 @@ export const Navigation = {
     return NativeNavigation.onCarPlayConnectionChange((event) =>
       listener(event.connected)
     );
+  },
+
+  /**
+   * Sets the component iOS keeps mounted while CarPlay is connected, in a React root of its own that draws nothing.
+   * Render `<CarMap>` there: CarPlay can launch the app without its phone UI, and this root still starts React Native
+   * then. Call it in the app's entry file, next to `registerRootComponent`. Android Auto ignores it; render
+   * `<CarMap>` in the app there.
+   */
+  registerCarPlayRoot(component: ComponentType): void {
+    AppRegistry.registerComponent(CARPLAY_ROOT_MODULE, () => component);
   },
 };
 

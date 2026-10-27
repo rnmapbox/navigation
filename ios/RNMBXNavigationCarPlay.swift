@@ -2,6 +2,7 @@ import CarPlay
 import Combine
 import MapboxMaps
 import MapboxNavigationCore
+import rnmapbox_maps
 // Some CarPlayManagerDelegate requirements have their default implementations only in this SPI.
 @_spi(MapboxCarPlayInternal) import MapboxNavigationUIKit
 
@@ -25,6 +26,56 @@ final class RNMBXNavigationCarPlaySceneDelegate: NSObject, CPTemplateApplication
   }
 }
 
+/// Hosts the component registered with `Navigation.registerCarPlayRoot` while CarPlay is connected, so `<CarMap>`
+/// children render even when CarPlay launched the app without its phone UI.
+@objc(RNMBXNavigationCarPlayRoot)
+public final class RNMBXNavigationCarPlayRoot: NSObject {
+  /// Keep in sync with `CARPLAY_ROOT_MODULE` in src/Navigation.ts.
+  @objc public static let moduleName = "RNMBXNavigationCarPlayRoot"
+
+  /// The app's `RCTReactNativeFactory`, set by the app delegate (the Expo plugin's `carPlay` option adds that).
+  /// Without it CarPlay shows the map but doesn't host the root.
+  @objc public static var reactNativeFactory: NSObject?
+
+  /// Creates the root on the factory's React Native host, starting the host if the phone scene hasn't yet.
+  static func makeRootView() -> UIView? {
+    guard let factory = reactNativeFactory else { return nil }
+    func property(_ key: String) -> AnyObject? {
+      factory.responds(to: NSSelectorFromString(key)) ? factory.value(forKey: key) as AnyObject? : nil
+    }
+    guard let rootViewFactory = property("rootViewFactory") as? NSObject,
+          rootViewFactory.responds(to: rootViewFactorySelector)
+    else {
+      Logger.error("RNMBXNavigationCarPlayRoot.reactNativeFactory isn't an RCTReactNativeFactory; CarPlay shows no root")
+      return nil
+    }
+    // Same arguments as `-[RCTReactNativeFactory startReactNativeWithModuleName:...]`.
+    return unsafeBitCast(rootViewFactory, to: RootViewFactory.self).view(
+      withModuleName: moduleName,
+      initialProperties: nil,
+      launchOptions: nil,
+      bundleConfiguration: property("bundleConfiguration"),
+      devMenuConfiguration: property("devMenuConfiguration")
+    )
+  }
+}
+
+/// `RCTRootViewFactory`'s view method. Swift imports its configurations as non-null, but they are nil in release
+/// builds, where `+[RCTDevMenuConfiguration defaultConfiguration]` returns nil.
+@objc private protocol RootViewFactory {
+  @objc(viewWithModuleName:initialProperties:launchOptions:bundleConfiguration:devMenuConfiguration:)
+  func view(
+    withModuleName moduleName: String,
+    initialProperties: [AnyHashable: Any]?,
+    launchOptions: [AnyHashable: Any]?,
+    bundleConfiguration: AnyObject?,
+    devMenuConfiguration: AnyObject?
+  ) -> UIView
+}
+
+private let rootViewFactorySelector =
+  #selector(RootViewFactory.view(withModuleName:initialProperties:launchOptions:bundleConfiguration:devMenuConfiguration:))
+
 /// Shows the shared navigation session on CarPlay: the map while idle, turn-by-turn guidance while the phone guides.
 @MainActor
 final class RNMBXNavigationCarPlay: NSObject {
@@ -44,12 +95,13 @@ final class RNMBXNavigationCarPlay: NSObject {
   private weak var browsingMapView: MapView?
 
   private var manager: CarPlayManager?
+  private var reactRootView: UIView?
   private var subscriptions = Set<AnyCancellable>()
 
   func connect(_ scene: CPTemplateApplicationScene, _ interfaceController: CPInterfaceController, _ window: CPWindow) {
     connected = true
     let session = RNMBXNavigationSession.shared
-    // CarPlay can launch the app without the phone scene, so React Native may never run to set the token.
+    // CarPlay can launch the app without the phone scene; the Info.plist token shows the map before JS sets one.
     if session.accessToken == nil {
       session.accessToken = MapboxOptions.accessToken
     }
@@ -62,10 +114,20 @@ final class RNMBXNavigationCarPlay: NSObject {
         self?.start(provider, scene, interfaceController, window)
       }
       .store(in: &subscriptions)
+
+    if let rootView = RNMBXNavigationCarPlayRoot.makeRootView() {
+      // Renders no UI of its own; it only has to stay mounted for `<CarMap>`, under the map.
+      rootView.frame = .zero
+      rootView.isUserInteractionEnabled = false
+      window.insertSubview(rootView, at: 0)
+      reactRootView = rootView
+    }
   }
 
   func disconnect(_ scene: CPTemplateApplicationScene, _ interfaceController: CPInterfaceController, _ window: CPWindow) {
     subscriptions.removeAll()
+    reactRootView?.removeFromSuperview()
+    reactRootView = nil
     manager?.templateApplicationScene(scene, didDisconnect: interfaceController, from: window)
     manager = nil
     browsingMapView = nil

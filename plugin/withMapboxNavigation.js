@@ -1,7 +1,9 @@
 const {
   AndroidConfig,
   createRunOncePlugin,
+  WarningAggregator,
   withAndroidManifest,
+  withAppDelegate,
   withEntitlementsPlist,
   withGradleProperties,
   withInfoPlist,
@@ -30,11 +32,14 @@ const DEFAULT_LOCATION_USAGE =
  * Inserts a tagged block of `lines` before (`offset` 0) or after (`offset` 1) the first line matching
  * `anchor`, replacing the block of a previous run.
  * @param {string} src
- * @param {{ tag: string, lines: string[], anchor: RegExp, offset: 0 | 1 }} options
+ * @param {{ tag: string, lines: string[], anchor: RegExp, offset: 0 | 1, comment?: string, file?: string }} options
  */
-function addGeneratedBlock(src, { tag, lines, anchor, offset }) {
-  const begin = `# @generated begin ${tag}`;
-  const end = `# @generated end ${tag}`;
+function addGeneratedBlock(
+  src,
+  { tag, lines, anchor, offset, comment = '#', file = 'the Podfile' }
+) {
+  const begin = `${comment} @generated begin ${tag}`;
+  const end = `${comment} @generated end ${tag}`;
   const srcLines = src.split('\n');
   const start = srcLines.findIndex((line) => line.trim() === begin);
   if (start !== -1) {
@@ -45,7 +50,7 @@ function addGeneratedBlock(src, { tag, lines, anchor, offset }) {
   }
   const index = srcLines.findIndex((line) => anchor.test(line));
   if (index === -1) {
-    throw new Error(`${pkg.name}: no line matching ${anchor} in the Podfile`);
+    throw new Error(`${pkg.name}: no line matching ${anchor} in ${file}`);
   }
   srcLines.splice(index + offset, 0, begin, ...lines, end);
   return srcLines.join('\n');
@@ -110,6 +115,30 @@ function applyCarPlayInfoPlist(infoPlist) {
     },
   ];
   return infoPlist;
+}
+
+/**
+ * Hands the React Native factory the Swift app delegate creates to the CarPlay scene, which starts React Native for
+ * `Navigation.registerCarPlayRoot` on it, replacing the lines of a previous run.
+ * @param {string} appDelegate
+ */
+function applyCarPlayAppDelegate(appDelegate) {
+  let src = addGeneratedBlock(appDelegate, {
+    tag: '@rnmapbox/navigation-import',
+    lines: ['import rnmapbox_navigation'],
+    anchor: /^import React$/,
+    offset: 1,
+    comment: '//',
+    file: 'AppDelegate.swift',
+  });
+  return addGeneratedBlock(src, {
+    tag: '@rnmapbox/navigation-carplay-root',
+    lines: ['    RNMBXNavigationCarPlayRoot.reactNativeFactory = factory'],
+    anchor: /^\s*reactNativeFactory = factory$/,
+    offset: 1,
+    comment: '//',
+    file: 'AppDelegate.swift',
+  });
 }
 
 const CAR_APP_SERVICE = 'com.rnmapbox.rnmbxnav.RNMBXNavigationCarAppService';
@@ -210,6 +239,19 @@ const withMapboxNavigation = (config, props) => {
       entitlementsConfig.modResults['com.apple.developer.carplay-maps'] = true;
       return entitlementsConfig;
     });
+    config = withAppDelegate(config, (appDelegateConfig) => {
+      if (appDelegateConfig.modResults.language !== 'swift') {
+        WarningAggregator.addWarningIOS(
+          pkg.name,
+          'carPlay: only a Swift AppDelegate gets Navigation.registerCarPlayRoot support; set RNMBXNavigationCarPlayRoot.reactNativeFactory yourself'
+        );
+        return appDelegateConfig;
+      }
+      appDelegateConfig.modResults.contents = applyCarPlayAppDelegate(
+        appDelegateConfig.modResults.contents
+      );
+      return appDelegateConfig;
+    });
   }
 
   if (androidAuto) {
@@ -246,4 +288,5 @@ module.exports = createRunOncePlugin(
 );
 module.exports.applyPodfileModifications = applyPodfileModifications;
 module.exports.applyCarPlayInfoPlist = applyCarPlayInfoPlist;
+module.exports.applyCarPlayAppDelegate = applyCarPlayAppDelegate;
 module.exports.applyAndroidAutoManifest = applyAndroidAutoManifest;
