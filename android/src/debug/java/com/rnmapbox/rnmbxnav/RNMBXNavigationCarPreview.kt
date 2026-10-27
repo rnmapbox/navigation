@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ApplicationInfo
 import android.view.Gravity
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -14,6 +13,7 @@ import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.ReactApplicationContext
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
+import java.lang.ref.WeakReference
 
 /**
  * Debug builds only, for prototyping without a car or the Desktop Head Unit: shows a car-screen-sized SurfaceView over
@@ -25,13 +25,17 @@ import com.mapbox.maps.CameraOptions
 object RNMBXNavigationCarPreview {
   private const val ACTION = "com.rnmapbox.navigation.DEBUG_CAR_PREVIEW"
   private var registered = false
+  /** The latest one: a JS reload replaces the context, and the receiver outlives it. */
+  private var context = WeakReference<ReactApplicationContext>(null)
   private var view: SurfaceView? = null
 
-  fun registerIfDebuggable(context: ReactApplicationContext) {
-    if (registered || context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return
+  fun register(reactContext: ReactApplicationContext) {
+    context = WeakReference(reactContext)
+    if (registered) return
     registered = true
     val receiver = object : BroadcastReceiver() {
       override fun onReceive(receiverContext: Context, intent: Intent) {
+        val context = context.get() ?: return
         val camera = if (intent.hasExtra("latitude") && intent.hasExtra("longitude")) {
           CameraOptions.Builder()
             .center(Point.fromLngLat(intent.getFloatExtra("longitude", 0f).toDouble(), intent.getFloatExtra("latitude", 0f).toDouble()))
@@ -50,7 +54,7 @@ object RNMBXNavigationCarPreview {
       }
     }
     ContextCompat.registerReceiver(
-      context.applicationContext, receiver, IntentFilter(ACTION), ContextCompat.RECEIVER_EXPORTED
+      reactContext.applicationContext, receiver, IntentFilter(ACTION), ContextCompat.RECEIVER_EXPORTED
     )
   }
 

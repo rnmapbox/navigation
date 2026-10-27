@@ -56,7 +56,7 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
         RNMBXNavigationNative.routeChanged(RNMBXNavigationRoute(routes), reason)
       }
       RNMBXNavigationCarMaps.observer = { carMap -> emitOnCarMapChange(carMapEvent(carMap)) }
-      RNMBXNavigationCarPreview.registerIfDebuggable(reactContext)
+      RNMBXNavigationCarPreview.register(reactContext)
     }
   }
 

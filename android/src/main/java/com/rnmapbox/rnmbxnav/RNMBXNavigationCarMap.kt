@@ -93,7 +93,6 @@ class RNMBXNavigationCarMapSurface(private val context: Context) : RNMBXNavigati
   private val locationProvider = NavigationLocationProvider()
   private var navigating = false
 
-  /** Whether the camera follows the location while guidance runs. */
   var followLocation = true
 
   /** [dpi] of the car screen, 160 for a pixel ratio of 1. */
@@ -139,7 +138,6 @@ class RNMBXNavigationCarMapSurface(private val context: Context) : RNMBXNavigati
     this.mapSurface = null
   }
 
-  /** Car screen pan, in pixels. */
   fun scrollBy(distanceX: Float, distanceY: Float) {
     val map = mapSurface?.getMapboxMap() ?: return
     val center = map.cameraState.center
