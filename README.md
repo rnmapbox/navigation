@@ -348,8 +348,9 @@ Use it as is, or copy it as a starting point for your own UI.
 Experimental, iOS only. With the Expo plugin's `carPlay: true`, CarPlay shows the Navigation SDK's own CarPlay UI for the same navigation session as the phone: the map while idle, and turn-by-turn guidance while guidance runs. Ending the trip on CarPlay stops navigation. `Navigation.isCarPlayConnected()` and `Navigation.addCarPlayConnectionListener` report the connection.
 
 - It needs the scene-based life cycle, which Expo SDK 58 apps have. Bare apps add the CarPlay scene to `UIApplicationSceneManifest` themselves, with `RNMBXNavigationCarPlaySceneDelegate` as its delegate class.
-- CarPlay stays blank until JS calls `Navigation.setAccessToken`.
-- Running on a device or in a car needs the CarPlay navigation entitlement from Apple; the iOS Simulator (I/O › External Displays › CarPlay) doesn't.
+- CarPlay can launch the app without the phone app, and so without React Native. Set `MBXAccessToken` in Info.plist so the navigation session starts then; otherwise CarPlay stays blank until JS calls `Navigation.setAccessToken`.
+- The app needs the `com.apple.developer.carplay-maps` entitlement (the plugin adds it) and an `application-identifier`, which code signing adds. Running on a device or in a car needs Apple to grant the CarPlay navigation entitlement to your team; the iOS Simulator (I/O › External Displays › CarPlay) doesn't.
+- In the iOS 26.4 and 26.5 simulators, CarPlay's host process crashes as soon as a map template appears, an Apple bug (see [mapbox-navigation-ios#4827](https://github.com/mapbox/mapbox-navigation-ios/issues/4827)). For development, `scripts/carplay-simulator-shim/shim.sh inject <UDID>` injects a stub into that simulator's CarPlay host, and `shim.sh cleanup <UDID>` removes it. It only affects the simulator and is not part of the package.
 
 ## Example app
 
