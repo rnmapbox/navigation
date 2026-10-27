@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   CircleLayer,
   ShapeSource,
@@ -5,8 +6,8 @@ import {
   type CircleLayerStyle,
   type SymbolLayerStyle,
 } from '@rnmapbox/maps';
-import { CarMap } from '@rnmapbox/navigation';
-import type { FeatureCollection } from 'geojson';
+import Navigation, { CarMap, type Position } from '@rnmapbox/navigation';
+import type { FeatureCollection, Point } from 'geojson';
 
 // Along the CarPlay screen's demo trip, Mapbox HQ to Union Square.
 const POIS: FeatureCollection = {
@@ -23,16 +24,24 @@ const POIS: FeatureCollection = {
 };
 
 const CIRCLE_STYLE: CircleLayerStyle = {
-  circleRadius: 8,
-  circleColor: '#7c3aed',
+  circleRadius: 14,
+  circleColor: '#d946ef',
   circleStrokeWidth: 3,
   circleStrokeColor: '#ffffff',
 };
 
 const NAVIGATING_CIRCLE_STYLE: CircleLayerStyle = {
   ...CIRCLE_STYLE,
-  circleRadius: 12,
   circleColor: '#f97316',
+};
+
+const CAR_RING_STYLE: CircleLayerStyle = {
+  circleRadius: 60,
+  circleColor: '#d946ef',
+  circleOpacity: 0.25,
+  circleStrokeWidth: 4,
+  circleStrokeColor: '#d946ef',
+  circlePitchAlignment: 'map',
 };
 
 const LABEL_STYLE: SymbolLayerStyle = {
@@ -45,18 +54,41 @@ const LABEL_STYLE: SymbolLayerStyle = {
 
 /** Rendered once at the app root; shows on the car screen only. */
 export default function CarMapLayers() {
+  const [carPosition, setCarPosition] = useState<Position>();
+
+  useEffect(() => {
+    const subscription = Navigation.addLocationListener((event) =>
+      setCarPosition([event.longitude, event.latitude])
+    );
+    return () => subscription.remove();
+  }, []);
+
+  const carPoint: Point | undefined = carPosition && {
+    type: 'Point',
+    coordinates: carPosition,
+  };
+
   return (
     <CarMap>
       {({ activity }) => (
-        <ShapeSource id="car-pois" shape={POIS}>
-          <CircleLayer
-            id="car-pois-circle"
-            style={
-              activity === 'navigating' ? NAVIGATING_CIRCLE_STYLE : CIRCLE_STYLE
-            }
-          />
-          <SymbolLayer id="car-pois-label" style={LABEL_STYLE} />
-        </ShapeSource>
+        <>
+          {carPoint && (
+            <ShapeSource id="car-position" shape={carPoint}>
+              <CircleLayer id="car-position-ring" style={CAR_RING_STYLE} />
+            </ShapeSource>
+          )}
+          <ShapeSource id="car-pois" shape={POIS}>
+            <CircleLayer
+              id="car-pois-circle"
+              style={
+                activity === 'navigating'
+                  ? NAVIGATING_CIRCLE_STYLE
+                  : CIRCLE_STYLE
+              }
+            />
+            <SymbolLayer id="car-pois-label" style={LABEL_STYLE} />
+          </ShapeSource>
+        </>
       )}
     </CarMap>
   );
