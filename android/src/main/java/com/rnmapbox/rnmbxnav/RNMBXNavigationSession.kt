@@ -74,6 +74,9 @@ object RNMBXNavigationSession {
   private var guidanceStart: Any? = null
   private var simulating = false
 
+  /** Set by Android Auto's auto drive, which Play review uses: guidance then simulates. */
+  var autoDrive = false
+
   private val navigationRouteProgressObserver = RouteProgressObserver { progress ->
     updateRouteProgress(progress)
     routeProgressObserver?.invoke(progress)
@@ -191,7 +194,8 @@ object RNMBXNavigationSession {
 
   /** Throws [SecurityException] without location permission unless simulating. */
   @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
-  fun startActiveGuidance(navigation: MapboxNavigation, route: RNMBXNavigationRoute, simulate: Boolean) {
+  fun startActiveGuidance(navigation: MapboxNavigation, route: RNMBXNavigationRoute, simulateRequested: Boolean) {
+    val simulate = simulateRequested || autoDrive
     unregisterObservers(navigation)
     navigation.registerRouteProgressObserver(navigationRouteProgressObserver)
     navigation.registerLocationObserver(locationObserver)
