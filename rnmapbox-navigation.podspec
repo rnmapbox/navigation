@@ -33,7 +33,9 @@ Pod::Spec.new do |s|
   s.source       = { :git => 'https://github.com/rnmapbox/navigation.git', :tag => "v#{s.version}" }
 
   s.source_files = 'ios/*.{h,m,mm,swift}', 'cpp/*.{h,cpp}'
-  s.private_header_files = 'ios/*.h', 'cpp/*.h'
+  # Public so the app delegate can hand its React Native factory to the CarPlay root.
+  s.public_header_files = 'ios/RNMBXNavigationCarPlayRoot.h'
+  s.private_header_files = Dir.glob('ios/*.h', base: __dir__) - ['ios/RNMBXNavigationCarPlayRoot.h'] + ['cpp/*.h']
 
   if rnMapboxNavigationUseSPM
     # The Navigation SDK v3 ships only as a Swift package.
