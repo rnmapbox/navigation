@@ -6,8 +6,8 @@ buildscript {
         targetSdkVersion = 36
         ndkVersion = "27.1.12297006"
         kotlinVersion = "2.1.20"
-        // Nav SDK 3.23.1 pins Maps 11.23.1; @rnmapbox/maps must use the same version.
-        RNMapboxMapsVersion = "11.23.1"
+        // Nav SDK 3.33.0 pins Maps 11.33.0; @rnmapbox/maps must use the same version.
+        RNMapboxMapsVersion = "11.33.0"
     }
     repositories {
         google()

@@ -1,5 +1,5 @@
 # Customization (set in your Podfile before `use_native_modules!`):
-#  $RNMapboxNavigationVersion = '3.23.1' - Navigation SDK version, defaults to package.json `mapboxNavigation.ios`.
+#  $RNMapboxNavigationVersion = '3.33.0' - Navigation SDK version, defaults to package.json `mapboxNavigation.ios`.
 #     Nav 3.N pins Mapbox Maps 11.N exactly.
 #  $RNMapboxNavigationSwiftPackageManager = "manual" - don't add the Swift package; you add
 #     mapbox-navigation-ios (products MapboxNavigationCore and MapboxNavigationUIKit) yourself.

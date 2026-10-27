@@ -7,7 +7,7 @@ jest.mock('../specs/NativeRNMBXNavigationModule', () => ({
   __esModule: true,
   default: {
     setAccessToken: jest.fn(),
-    getSdkVersion: jest.fn(() => '3.23.1'),
+    getSdkVersion: jest.fn(() => '3.33.0'),
     getDefaultDistanceUnit: jest.fn(() => 'imperial'),
     stopNavigation: jest.fn(),
     setCameraState: jest.fn(),
@@ -40,7 +40,7 @@ describe('Navigation', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('returns the native SDK version', () => {
-    expect(Navigation.getSdkVersion()).toBe('3.23.1');
+    expect(Navigation.getSdkVersion()).toBe('3.33.0');
     expect(Navigation.getDefaultDistanceUnit()).toBe('imperial');
   });
 

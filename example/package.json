@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rnmapbox/maps": "10.3.11",
+    "@rnmapbox/maps": "10.3.14",
     "react": "19.2.3",
     "react-native": "0.84.1"
   },

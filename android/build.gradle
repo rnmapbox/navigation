@@ -1,5 +1,5 @@
 // Customization (root project ext, e.g. in android/build.gradle `ext { ... }`):
-//   RNMapboxNavigationVersion - Mapbox Navigation SDK version, e.g. "3.23.1".
+//   RNMapboxNavigationVersion - Mapbox Navigation SDK version, e.g. "3.33.0".
 //     Nav 3.N pins Mapbox Maps 11.N exactly; keep it in step with RNMapboxMapsVersion.
 //   RNMapboxNavigationMapsVersion - the Maps version the Navigation SDK is built against, derived from
 //     RNMapboxNavigationVersion by default. The build fails if anything resolves another Maps version.
