@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -76,8 +75,7 @@ export default function App() {
       ) : (
         <NavigationScreen onOpenCarPlay={() => setScreen('carPlay')} />
       )}
-      {/* On iOS the CarPlay root renders it; see index.ts. */}
-      {Platform.OS === 'android' && <CarMapLayers />}
+      <CarMapLayers />
     </>
   );
 }

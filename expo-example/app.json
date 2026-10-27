@@ -30,6 +30,7 @@
         "@rnmapbox/navigation",
         {
           "carPlay": true,
+          "carPlayRoot": true,
           "androidAuto": true
         }
       ]

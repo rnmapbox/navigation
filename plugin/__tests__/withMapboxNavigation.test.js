@@ -2,6 +2,9 @@ const {
   applyAndroidAutoManifest,
   applyCarPlayAppDelegate,
   applyCarPlayInfoPlist,
+  removeAndroidAutoManifest,
+  removeCarPlayInfoPlist,
+  updateCarPlayAppDelegate,
   applyPodfileModifications,
 } = require('../withMapboxNavigation');
 
@@ -131,9 +134,9 @@ import rnmapbox_navigation
 import ReactAppDependencyProvider`);
     expect(applyCarPlayAppDelegate(APP_DELEGATE))
       .toContain(`    reactNativeFactory = factory
-// @generated begin @rnmapbox/navigation-carplay-root
+    // @generated begin @rnmapbox/navigation-carplay-root
     RNMBXNavigationCarPlayRoot.reactNativeFactory = factory
-// @generated end @rnmapbox/navigation-carplay-root
+    // @generated end @rnmapbox/navigation-carplay-root
 
     return super.application`);
   });
@@ -147,6 +150,70 @@ import ReactAppDependencyProvider`);
     expect(() => applyCarPlayAppDelegate('import React\n')).toThrow(
       /AppDelegate\.swift/
     );
+  });
+
+  it('accepts an import with an access level', () => {
+    expect(
+      applyCarPlayAppDelegate(
+        APP_DELEGATE.replace('\nimport React\n', '\ninternal import React\n')
+      )
+    ).toContain('internal import React\n// @generated begin');
+  });
+
+  describe('updateCarPlayAppDelegate', () => {
+    const swift = (contents) => ({ contents, language: 'swift' });
+
+    it('removes the lines when carPlayRoot is off', () => {
+      const applied = applyCarPlayAppDelegate(APP_DELEGATE);
+      expect(updateCarPlayAppDelegate(swift(applied), false)).toEqual({
+        contents: APP_DELEGATE,
+      });
+    });
+
+    it('leaves an app delegate without them alone when carPlayRoot is off', () => {
+      expect(updateCarPlayAppDelegate(swift(APP_DELEGATE), false)).toEqual({
+        contents: APP_DELEGATE,
+      });
+    });
+
+    it('warns instead of failing for an app delegate it does not know', () => {
+      const result = updateCarPlayAppDelegate(swift('import React\n'), true);
+      expect(result.contents).toBe('import React\n');
+      expect(result.warning).toMatch(/reactNativeFactory = factory/);
+    });
+
+    it('warns for an Objective-C app delegate', () => {
+      const result = updateCarPlayAppDelegate(
+        { contents: '@implementation AppDelegate\n@end\n', language: 'objcpp' },
+        true
+      );
+      expect(result.contents).toBe('@implementation AppDelegate\n@end\n');
+      expect(result.warning).toMatch(/Swift/);
+    });
+  });
+});
+
+describe('removeCarPlayInfoPlist', () => {
+  it('removes only its own CarPlay scene', () => {
+    const other = { UISceneDelegateClassName: 'OtherCarPlayDelegate' };
+    const infoPlist = applyCarPlayInfoPlist({
+      UIApplicationSceneManifest: {
+        UISceneConfigurations: { UIWindowSceneSessionRoleApplication: [{}] },
+      },
+    });
+    infoPlist.UIApplicationSceneManifest.UISceneConfigurations.CPTemplateApplicationSceneSessionRoleApplication.push(
+      other
+    );
+    expect(
+      removeCarPlayInfoPlist(infoPlist).UIApplicationSceneManifest
+        .UISceneConfigurations.CPTemplateApplicationSceneSessionRoleApplication
+    ).toEqual([other]);
+  });
+
+  it('leaves an Info.plist without scenes alone', () => {
+    expect(removeCarPlayInfoPlist({ CFBundleName: 'App' })).toEqual({
+      CFBundleName: 'App',
+    });
   });
 });
 
@@ -190,5 +257,21 @@ describe('applyAndroidAutoManifest', () => {
     expect(applyAndroidAutoManifest(JSON.parse(JSON.stringify(once)))).toEqual(
       once
     );
+  });
+});
+
+describe('removeAndroidAutoManifest', () => {
+  it('removes the service and metadata but keeps the permissions', () => {
+    const manifest = applyAndroidAutoManifest({
+      manifest: {
+        $: {},
+        application: [{ $: { 'android:name': '.MainApplication' } }],
+      },
+    });
+    const application =
+      removeAndroidAutoManifest(manifest).manifest.application[0];
+    expect(application.service).toEqual([]);
+    expect(application['meta-data']).toEqual([]);
+    expect(manifest.manifest['uses-permission']).toHaveLength(2);
   });
 });

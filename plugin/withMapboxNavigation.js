@@ -26,6 +26,9 @@ const DEFAULT_LOCATION_USAGE =
  *   navigation map that `<CarMap>` adds to.
  * @property {boolean} [carPlay] Adds the CarPlay scene and the `com.apple.developer.carplay-maps` entitlement, so
  *   CarPlay shows the navigation session.
+ * @property {boolean} [carPlayRoot] With `carPlay`, hands the app delegate's React Native factory to the CarPlay
+ *   scene, so the component passed to `Navigation.registerCarPlayRoot` renders, and React Native starts, when CarPlay
+ *   launches the app without its phone UI.
  */
 
 /**
@@ -36,23 +39,49 @@ const DEFAULT_LOCATION_USAGE =
  */
 function addGeneratedBlock(
   src,
-  { tag, lines, anchor, offset, comment = '#', file = 'the Podfile' }
-) {
-  const begin = `${comment} @generated begin ${tag}`;
-  const end = `${comment} @generated end ${tag}`;
-  const srcLines = src.split('\n');
-  const start = srcLines.findIndex((line) => line.trim() === begin);
-  if (start !== -1) {
-    const stop = srcLines.findIndex(
-      (line, index) => index > start && line.trim() === end
-    );
-    srcLines.splice(start, stop - start + 1);
+  {
+    tag,
+    lines,
+    anchor,
+    offset,
+    comment = '#',
+    indent = '',
+    file = 'the Podfile',
   }
+) {
+  const srcLines = removeGeneratedBlock(src, { tag, comment }).split('\n');
   const index = srcLines.findIndex((line) => anchor.test(line));
   if (index === -1) {
     throw new Error(`${pkg.name}: no line matching ${anchor} in ${file}`);
   }
-  srcLines.splice(index + offset, 0, begin, ...lines, end);
+  srcLines.splice(
+    index + offset,
+    0,
+    `${indent}${comment} @generated begin ${tag}`,
+    ...lines,
+    `${indent}${comment} @generated end ${tag}`
+  );
+  return srcLines.join('\n');
+}
+
+/**
+ * Removes the block `addGeneratedBlock` inserted for `tag`, if any.
+ * @param {string} src
+ * @param {{ tag: string, comment?: string }} options
+ */
+function removeGeneratedBlock(src, { tag, comment = '#' }) {
+  const srcLines = src.split('\n');
+  const start = srcLines.findIndex(
+    (line) => line.trim() === `${comment} @generated begin ${tag}`
+  );
+  if (start === -1) {
+    return src;
+  }
+  const stop = srcLines.findIndex(
+    (line, index) =>
+      index > start && line.trim() === `${comment} @generated end ${tag}`
+  );
+  srcLines.splice(start, stop - start + 1);
   return srcLines.join('\n');
 }
 
@@ -118,30 +147,104 @@ function applyCarPlayInfoPlist(infoPlist) {
 }
 
 /**
+ * Removes the CarPlay scene `applyCarPlayInfoPlist` added, keeping other CarPlay scenes.
+ * @param {Record<string, any>} infoPlist
+ */
+function removeCarPlayInfoPlist(infoPlist) {
+  const configurations =
+    infoPlist.UIApplicationSceneManifest?.UISceneConfigurations;
+  const scenes = configurations?.[CARPLAY_SCENE_ROLE];
+  if (!scenes) {
+    return infoPlist;
+  }
+  const others = scenes.filter(
+    (/** @type {Record<string, string>} */ scene) =>
+      scene.UISceneDelegateClassName !== 'RNMBXNavigationCarPlaySceneDelegate'
+  );
+  if (others.length > 0) {
+    configurations[CARPLAY_SCENE_ROLE] = others;
+  } else {
+    delete configurations[CARPLAY_SCENE_ROLE];
+  }
+  return infoPlist;
+}
+
+const APP_DELEGATE_TAGS = [
+  '@rnmapbox/navigation-import',
+  '@rnmapbox/navigation-carplay-root',
+];
+
+/**
  * Hands the React Native factory the Swift app delegate creates to the CarPlay scene, which starts React Native for
  * `Navigation.registerCarPlayRoot` on it, replacing the lines of a previous run.
  * @param {string} appDelegate
  */
 function applyCarPlayAppDelegate(appDelegate) {
-  let src = addGeneratedBlock(appDelegate, {
-    tag: '@rnmapbox/navigation-import',
+  const src = addGeneratedBlock(appDelegate, {
+    tag: APP_DELEGATE_TAGS[0],
     lines: ['import rnmapbox_navigation'],
-    anchor: /^import React$/,
+    anchor: /^(\w+ )?import React$/,
     offset: 1,
     comment: '//',
     file: 'AppDelegate.swift',
   });
   return addGeneratedBlock(src, {
-    tag: '@rnmapbox/navigation-carplay-root',
+    tag: APP_DELEGATE_TAGS[1],
     lines: ['    RNMBXNavigationCarPlayRoot.reactNativeFactory = factory'],
     anchor: /^\s*reactNativeFactory = factory$/,
     offset: 1,
     comment: '//',
+    indent: '    ',
     file: 'AppDelegate.swift',
   });
 }
 
+/**
+ * Removes the lines `applyCarPlayAppDelegate` added.
+ * @param {string} appDelegate
+ */
+function removeCarPlayAppDelegate(appDelegate) {
+  return APP_DELEGATE_TAGS.reduce(
+    (src, tag) => removeGeneratedBlock(src, { tag, comment: '//' }),
+    appDelegate
+  );
+}
+
+/**
+ * Applies or removes the `carPlayRoot` lines of the app delegate; returns a warning instead of failing the prebuild
+ * when the app delegate isn't one it knows.
+ * @param {{ contents: string, language: string }} appDelegate
+ * @param {boolean} carPlayRoot
+ * @returns {{ contents: string, warning?: string }}
+ */
+function updateCarPlayAppDelegate({ contents, language }, carPlayRoot) {
+  const unchanged = removeCarPlayAppDelegate(contents);
+  if (!carPlayRoot) {
+    return { contents: unchanged };
+  }
+  const manual =
+    'set RNMBXNavigationCarPlayRoot.reactNativeFactory in the app delegate yourself';
+  if (language !== 'swift') {
+    return {
+      contents: unchanged,
+      warning: `carPlayRoot: only a Swift AppDelegate is supported; ${manual}`,
+    };
+  }
+  try {
+    return { contents: applyCarPlayAppDelegate(unchanged) };
+  } catch (error) {
+    return {
+      contents: unchanged,
+      warning: `carPlayRoot: ${/** @type {Error} */ (error).message}; ${manual}`,
+    };
+  }
+}
+
 const CAR_APP_SERVICE = 'com.rnmapbox.rnmbxnav.RNMBXNavigationCarAppService';
+const CAR_APP_META_DATA = [
+  'com.google.android.gms.car.application',
+  'androidx.car.app.minCarApiLevel',
+];
 
 /**
  * Adds the Android Auto service, its permissions and metadata, replacing those of a previous run.
@@ -194,12 +297,36 @@ function applyAndroidAutoManifest(manifest) {
   return manifest;
 }
 
+/**
+ * Removes the Android Auto service and metadata `applyAndroidAutoManifest` added; the permissions stay, as other
+ * libraries may need them too.
+ * @param {import('expo/config-plugins').AndroidConfig.Manifest.AndroidManifest} manifest
+ */
+function removeAndroidAutoManifest(manifest) {
+  const application = AndroidConfig.Manifest.getMainApplication(manifest);
+  if (!application) {
+    return manifest;
+  }
+  if (application.service) {
+    application.service = application.service.filter(
+      (service) => service.$['android:name'] !== CAR_APP_SERVICE
+    );
+  }
+  if (application['meta-data']) {
+    application['meta-data'] = application['meta-data'].filter(
+      (item) => !CAR_APP_META_DATA.includes(item.$['android:name'])
+    );
+  }
+  return manifest;
+}
+
 /** @type {import('expo/config-plugins').ConfigPlugin<MapboxNavigationPluginProps | void>} */
 const withMapboxNavigation = (config, props) => {
   const {
     RNMapboxNavigationVersion,
     locationWhenInUsePermission,
     carPlay,
+    carPlayRoot,
     androidAuto,
   } = props ?? {};
 
@@ -209,15 +336,6 @@ const withMapboxNavigation = (config, props) => {
       { RNMapboxNavigationVersion }
     );
     return podfileConfig;
-  });
-
-  config = withInfoPlist(config, (plistConfig) => {
-    // The SDK's voice controller asserts on this in debug builds as soon as guidance starts.
-    const modes = plistConfig.modResults.UIBackgroundModes ?? [];
-    if (!modes.includes('audio')) {
-      plistConfig.modResults.UIBackgroundModes = [...modes, 'audio'];
-    }
-    return plistConfig;
   });
 
   if (locationWhenInUsePermission !== false) {
@@ -230,38 +348,40 @@ const withMapboxNavigation = (config, props) => {
     });
   }
 
+  // Options turned off remove what a previous prebuild added; the entitlement and permissions stay.
+  config = withInfoPlist(config, (plistConfig) => {
+    plistConfig.modResults = carPlay
+      ? applyCarPlayInfoPlist(plistConfig.modResults)
+      : removeCarPlayInfoPlist(plistConfig.modResults);
+    return plistConfig;
+  });
   if (carPlay) {
-    config = withInfoPlist(config, (plistConfig) => {
-      plistConfig.modResults = applyCarPlayInfoPlist(plistConfig.modResults);
-      return plistConfig;
-    });
     config = withEntitlementsPlist(config, (entitlementsConfig) => {
       entitlementsConfig.modResults['com.apple.developer.carplay-maps'] = true;
       return entitlementsConfig;
     });
-    config = withAppDelegate(config, (appDelegateConfig) => {
-      if (appDelegateConfig.modResults.language !== 'swift') {
-        WarningAggregator.addWarningIOS(
-          pkg.name,
-          'carPlay: only a Swift AppDelegate gets Navigation.registerCarPlayRoot support; set RNMBXNavigationCarPlayRoot.reactNativeFactory yourself'
-        );
-        return appDelegateConfig;
-      }
-      appDelegateConfig.modResults.contents = applyCarPlayAppDelegate(
-        appDelegateConfig.modResults.contents
-      );
-      return appDelegateConfig;
-    });
   }
+  if (carPlayRoot && !carPlay) {
+    WarningAggregator.addWarningIOS(pkg.name, 'carPlayRoot needs carPlay');
+  }
+  config = withAppDelegate(config, (appDelegateConfig) => {
+    const { contents, warning } = updateCarPlayAppDelegate(
+      appDelegateConfig.modResults,
+      Boolean(carPlay && carPlayRoot)
+    );
+    appDelegateConfig.modResults.contents = contents;
+    if (warning) {
+      WarningAggregator.addWarningIOS(pkg.name, warning);
+    }
+    return appDelegateConfig;
+  });
 
-  if (androidAuto) {
-    config = withAndroidManifest(config, (manifestConfig) => {
-      manifestConfig.modResults = applyAndroidAutoManifest(
-        manifestConfig.modResults
-      );
-      return manifestConfig;
-    });
-  }
+  config = withAndroidManifest(config, (manifestConfig) => {
+    manifestConfig.modResults = androidAuto
+      ? applyAndroidAutoManifest(manifestConfig.modResults)
+      : removeAndroidAutoManifest(manifestConfig.modResults);
+    return manifestConfig;
+  });
 
   if (RNMapboxNavigationVersion) {
     config = withGradleProperties(config, (gradleConfig) => {
@@ -288,5 +408,8 @@ module.exports = createRunOncePlugin(
 );
 module.exports.applyPodfileModifications = applyPodfileModifications;
 module.exports.applyCarPlayInfoPlist = applyCarPlayInfoPlist;
+module.exports.removeCarPlayInfoPlist = removeCarPlayInfoPlist;
 module.exports.applyCarPlayAppDelegate = applyCarPlayAppDelegate;
+module.exports.updateCarPlayAppDelegate = updateCarPlayAppDelegate;
+module.exports.removeAndroidAutoManifest = removeAndroidAutoManifest;
 module.exports.applyAndroidAutoManifest = applyAndroidAutoManifest;

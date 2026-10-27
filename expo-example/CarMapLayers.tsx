@@ -56,7 +56,7 @@ const LABEL_STYLE: SymbolLayerStyle = {
   textEmissiveStrength: 1,
 };
 
-/** The CarPlay root on iOS (see index.ts), rendered in the app on Android; shows on the car screen only. */
+/** Rendered in the app and as the CarPlay root (see index.ts); shows on the car screen only. */
 export default function CarMapLayers() {
   const [carPosition, setCarPosition] = useState<Position>();
 
