@@ -17,9 +17,9 @@ API reference: [rnmapbox.github.io/docs/navigation/api](https://rnmapbox.github.
 ## Requirements
 
 - React Native 0.79+ with the New Architecture.
-- [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) >= 10.3.11 (peer dependency). Navigation maps plug into its map view factory hooks (`mapViewImpl`) in the form they have since 10.3.11 ([rnmapbox/maps#4374](https://github.com/rnmapbox/maps/pull/4374), [#4375](https://github.com/rnmapbox/maps/pull/4375)); older versions don't build with it.
-- iOS: React Native's minimum deployment target (15.1 for React Native 0.84; the Navigation SDK itself needs iOS 14). Mapbox Navigation SDK for iOS 3.23.1 (`MapboxNavigationCore` and `MapboxNavigationUIKit`), added as a Swift package.
-- Android: `minSdkVersion` 24, `compileSdkVersion` 36. Mapbox Navigation SDK for Android 3.23.1 (`com.mapbox.navigationcore:navigation`, `ui-maps` and `ui-components`).
+- [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) >= 10.3.12, < 10.4.0 (peer dependency), see [Version pinning](#version-pinning). Navigation maps plug into its map view factory hooks (`mapViewImpl`, [rnmapbox/maps#4374](https://github.com/rnmapbox/maps/pull/4374), [#4375](https://github.com/rnmapbox/maps/pull/4375)), and its style setters need the Maps SDK version that Navigation SDK 3.33 pins.
+- iOS: React Native's minimum deployment target (15.1 for React Native 0.84; the Navigation SDK itself needs iOS 14). Mapbox Navigation SDK for iOS 3.33.0 (`MapboxNavigationCore` and `MapboxNavigationUIKit`), added as a Swift package.
+- Android: `minSdkVersion` 24, `compileSdkVersion` 36. Mapbox Navigation SDK for Android 3.33.0 (`com.mapbox.navigationcore:navigation`, `ui-maps` and `ui-components`).
 - A [Mapbox account](https://account.mapbox.com/auth/signup/) and a public access token (`pk.…`). Neither platform needs a secret downloads token: the Android release artifacts and the iOS Swift package binaries download without one.
 
 Navigation is billed per trip or MAU to the access token you pass, on top of Maps usage. See [Navigation SDK pricing](https://www.mapbox.com/pricing#navigation).
@@ -38,7 +38,7 @@ Use a [development build](https://docs.expo.dev/develop/development-builds/intro
 {
   "expo": {
     "plugins": [
-      ["@rnmapbox/maps", { "RNMapboxMapsVersion": "11.23.1" }],
+      ["@rnmapbox/maps", { "RNMapboxMapsVersion": "11.33.0" }],
       "@rnmapbox/navigation"
     ]
   }
@@ -84,13 +84,13 @@ Podfile options (set them before `use_native_modules!`):
 
 ```ruby
 # Navigation SDK version, defaults to package.json `mapboxNavigation.ios`. Nav 3.N pins Maps 11.N.
-$RNMapboxNavigationVersion = '3.23.1'
+$RNMapboxNavigationVersion = '3.33.0'
 # Don't add the Swift package; add mapbox-navigation-ios (products MapboxNavigationCore and
 # MapboxNavigationUIKit) yourself.
 $RNMapboxNavigationSwiftPackageManager = 'manual'
 ```
 
-`@rnmapbox/maps`' package requirement comes from `$RNMapboxMapsVersion` (default `~> 11.23.1`), and must be compatible with the Maps version the Navigation SDK pins, otherwise Xcode reports a package resolution error. With a newer Navigation SDK, set `$RNMapboxMapsVersion = '= 11.N.x'` to match.
+`@rnmapbox/maps`' package requirement comes from `$RNMapboxMapsVersion` (default `~> 11.33.0`), and must be compatible with the Maps version the Navigation SDK pins, otherwise Xcode reports a package resolution error. With a newer Navigation SDK, set `$RNMapboxMapsVersion = '= 11.N.x'` to match.
 
 ### Android
 
@@ -100,10 +100,10 @@ Add the Mapbox Maven repository, the same one `@rnmapbox/maps` uses.
 // android/build.gradle
 buildscript {
     ext {
-        // Nav 3.23.1 pins Maps 11.23.1. Both packages must resolve the same Maps.
-        RNMapboxMapsVersion = '11.23.1'
+        // Nav 3.33.0 pins Maps 11.33.0. Both packages must resolve the same Maps.
+        RNMapboxMapsVersion = '11.33.0'
         // Optional, defaults to package.json `mapboxNavigation.android`.
-        RNMapboxNavigationVersion = '3.23.1'
+        RNMapboxNavigationVersion = '3.33.0'
     }
 }
 
@@ -120,9 +120,10 @@ With `targetSdkVersion` 35 or higher, `@rnmapbox/maps` uses the `-ndk27` Maps ar
 
 ### Version pinning
 
-| @rnmapbox/navigation | Navigation SDK | Maps SDK (pinned by Nav) |
-| -------------------- | -------------- | ------------------------ |
-| 0.1.x                | 3.23.1         | 11.23.1                  |
+| @rnmapbox/navigation    | Navigation SDK | Maps SDK (pinned by Nav) | @rnmapbox/maps    |
+| ----------------------- | -------------- | ------------------------ | ----------------- |
+| 0.1.0-alpha.3+          | 3.33.0         | 11.33.0                  | >=10.3.12 <10.4.0 |
+| 0.1.0-alpha.0 – alpha.2 | 3.23.1         | 11.23.1                  | 10.3.11           |
 
 Navigation SDK 3.N depends on Maps SDK 11.N exactly. On Android, set `RNMapboxMapsVersion` to the matching 11.N. On iOS, `@rnmapbox/maps`' Swift package requirement must allow it.
 

@@ -87,7 +87,7 @@
     "@eslint/js": "^9.39.5",
     "@react-native/babel-preset": "0.84.1",
     "@react-native/eslint-config": "0.86.2",
-    "@rnmapbox/maps": "10.3.11",
+    "@rnmapbox/maps": "10.3.14",
     "@types/jest": "^29.5.14",
     "@types/react": "^19.2.0",
     "@types/react-test-renderer": "^19.1.0",
@@ -109,7 +109,7 @@
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
-    "@rnmapbox/maps": ">=10.3.11",
+    "@rnmapbox/maps": ">=10.3.12 <10.4.0",
     "react": "*",
     "react-native": "*"
   },
@@ -167,8 +167,8 @@
     "version": "0.63.1"
   },
   "mapboxNavigation": {
-    "ios": "3.23.1",
-    "android": "3.23.1"
+    "ios": "3.33.0",
+    "android": "3.33.0"
   },
   "jest": {
     "preset": "react-native",
