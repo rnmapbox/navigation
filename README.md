@@ -17,7 +17,7 @@ API reference: [rnmapbox.github.io/docs/navigation/api](https://rnmapbox.github.
 ## Requirements
 
 - React Native 0.79+ with the New Architecture.
-- [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) >= 10.3.15, < 10.4.0 (peer dependency), see [Version pinning](#version-pinning). Navigation maps plug into its map view factory hooks (`mapViewImpl`, [rnmapbox/maps#4374](https://github.com/rnmapbox/maps/pull/4374), [#4375](https://github.com/rnmapbox/maps/pull/4375)), `<CarMap>` into their support for maps that live elsewhere ([#4412](https://github.com/rnmapbox/maps/pull/4412), 10.3.15), and its style setters need the Maps SDK version that Navigation SDK 3.33 pins.
+- [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) >= 10.3.16, < 10.4.0 (peer dependency), see [Version pinning](#version-pinning). Navigation maps plug into its map view factory hooks (`mapViewImpl`, [rnmapbox/maps#4374](https://github.com/rnmapbox/maps/pull/4374), [#4375](https://github.com/rnmapbox/maps/pull/4375)), `<CarMap>` into their support for maps that live elsewhere ([#4412](https://github.com/rnmapbox/maps/pull/4412), [#4417](https://github.com/rnmapbox/maps/pull/4417), [#4419](https://github.com/rnmapbox/maps/pull/4419), [#4420](https://github.com/rnmapbox/maps/pull/4420); 10.3.16), and its style setters need the Maps SDK version that Navigation SDK 3.33 pins.
 - iOS: React Native's minimum deployment target (15.1 for React Native 0.84; the Navigation SDK itself needs iOS 14). Mapbox Navigation SDK for iOS 3.33.0 (`MapboxNavigationCore` and `MapboxNavigationUIKit`), added as a Swift package.
 - Android: `minSdkVersion` 24, `compileSdkVersion` 36. Mapbox Navigation SDK for Android 3.33.0 (`com.mapbox.navigationcore:navigation`, `ui-maps` and `ui-components`).
 - A [Mapbox account](https://account.mapbox.com/auth/signup/) and a public access token (`pk.…`). Neither platform needs a secret downloads token: the Android release artifacts and the iOS Swift package binaries download without one.
@@ -123,7 +123,7 @@ With `targetSdkVersion` 35 or higher, `@rnmapbox/maps` uses the `-ndk27` Maps ar
 
 | @rnmapbox/navigation    | Navigation SDK | Maps SDK (pinned by Nav) | @rnmapbox/maps    |
 | ----------------------- | -------------- | ------------------------ | ----------------- |
-| 0.1.0-alpha.4+          | 3.33.0         | 11.33.0                  | >=10.3.15 <10.4.0 |
+| 0.1.0-alpha.4+          | 3.33.0         | 11.33.0                  | >=10.3.16 <10.4.0 |
 | 0.1.0-alpha.3           | 3.33.0         | 11.33.0                  | >=10.3.12 <10.4.0 |
 | 0.1.0-alpha.0 – alpha.2 | 3.23.1         | 11.23.1                  | 10.3.11           |
 
