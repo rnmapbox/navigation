@@ -3287,9 +3287,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rnmapbox/maps@npm:10.3.14":
-  version: 10.3.14
-  resolution: "@rnmapbox/maps@npm:10.3.14"
+"@rnmapbox/maps@npm:10.3.15":
+  version: 10.3.15
+  resolution: "@rnmapbox/maps@npm:10.3.15"
   dependencies:
     "@turf/along": "npm:6.5.0"
     "@turf/distance": "npm:6.5.0"
@@ -3311,7 +3311,7 @@ __metadata:
       optional: true
     react-dom:
       optional: true
-  checksum: 10c0/28e98310e456e3af1c8af168cb2e8ce99310ca10d31dd302d70f8fb4d3503a45767a9419a59de8afdac8cda8ebe9270fee5bad8301ba9085948e5eab24129bea
+  checksum: 10c0/8aa9b4aad902644f99ab9bd6217a4d8d783ecd5961f90d931e8d33dcf4fc69f29ae8584194b739e3367bd664c9fc48c928961306ac8bb544e855ceb7dc2f2529
   languageName: node
   linkType: hard
 
@@ -3328,7 +3328,7 @@ __metadata:
     "@react-native/babel-preset": "npm:0.84.1"
     "@react-native/metro-config": "npm:0.84.1"
     "@react-native/typescript-config": "npm:0.84.1"
-    "@rnmapbox/maps": "npm:10.3.14"
+    "@rnmapbox/maps": "npm:10.3.15"
     "@types/react": "npm:^19.2.0"
     react: "npm:19.2.3"
     react-native: "npm:0.84.1"
@@ -3341,7 +3341,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rnmapbox/navigation-expo-example@workspace:expo-example"
   dependencies:
-    "@rnmapbox/maps": "npm:10.3.14"
+    "@rnmapbox/maps": "npm:10.3.15"
     "@rnmapbox/navigation": "workspace:*"
     "@types/react": "npm:~19.3.0"
     babel-preset-expo: "npm:~58.0.18"
@@ -3364,7 +3364,7 @@ __metadata:
     "@eslint/js": "npm:^9.39.5"
     "@react-native/babel-preset": "npm:0.84.1"
     "@react-native/eslint-config": "npm:0.86.2"
-    "@rnmapbox/maps": "npm:10.3.14"
+    "@rnmapbox/maps": "npm:10.3.15"
     "@types/jest": "npm:^29.5.14"
     "@types/react": "npm:^19.2.0"
     "@types/react-test-renderer": "npm:^19.1.0"
@@ -3385,7 +3385,7 @@ __metadata:
     typedoc-plugin-markdown: "npm:^4.14.1"
     typescript: "npm:^6.0.3"
   peerDependencies:
-    "@rnmapbox/maps": ">=10.3.12 <10.4.0"
+    "@rnmapbox/maps": ">=10.3.15 <10.4.0"
     react: "*"
     react-native: "*"
   languageName: unknown

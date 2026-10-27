@@ -55,6 +55,8 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
       RNMBXNavigationSession.routeChangeObserver = { routes, reason ->
         RNMBXNavigationNative.routeChanged(RNMBXNavigationRoute(routes), reason)
       }
+      RNMBXNavigationCarMaps.observer = { carMap -> emitOnCarMapChange(carMapEvent(carMap)) }
+      RNMBXNavigationCarPreview.register(reactContext)
     }
   }
 
@@ -178,6 +180,15 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
 
   override fun isVoiceMuted(): Boolean = voiceMuted
 
+  override fun isCarPlayConnected(): Boolean = false
+
+  override fun getCarMap(): WritableMap = carMapEvent(RNMBXNavigationCarMaps.current)
+
+  private fun carMapEvent(carMap: RNMBXNavigationCarMaps.CarMap): WritableMap = Arguments.createMap().apply {
+    putInt("id", carMap.id)
+    putString("activity", carMap.activity)
+  }
+
   override fun invalidate() {
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = null
@@ -187,6 +198,7 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
       RNMBXNavigationSession.offRouteObserver = null
       RNMBXNavigationSession.voiceInstructionObserver = null
       RNMBXNavigationSession.routeChangeObserver = null
+      RNMBXNavigationCarMaps.observer = null
       RNMBXNavigationSession.stopNavigation()
     }
     super.invalidate()

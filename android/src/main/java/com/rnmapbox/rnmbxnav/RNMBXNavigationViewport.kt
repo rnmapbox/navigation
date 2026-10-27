@@ -27,7 +27,7 @@ class RNMBXNavigationViewport(context: Context) : AbstractMapFeature(context) {
 
   override fun addToMap(mapView: RNMBXMapView) {
     super.addToMap(mapView)
-    binding = RNMBXNavigationMapFactory.binding(mapView.mapView)
+    binding = mapView.mapView?.let { RNMBXNavigationMapFactory.binding(it) }
     if (binding == null) {
       Logger.e(LOG_TAG, "NavigationViewport must be a child of <MapView mapViewImpl=\"rnmbxnav\">")
     }

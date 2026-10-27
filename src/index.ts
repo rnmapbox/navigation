@@ -43,3 +43,4 @@ export {
 } from './NavigationViewport';
 
 export { Navigation as default } from './Navigation';
+export { CarMap, type CarMapActivity, type CarMapProps } from './CarMap';

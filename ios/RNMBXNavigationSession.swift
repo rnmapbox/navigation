@@ -3,6 +3,7 @@ import CoreLocation
 import Foundation
 import MapboxDirections
 import MapboxNavigationCore
+import rnmapbox_maps
 
 /// Process-wide navigation state shared by the TurboModule and every adopted map.
 /// The SDK allows one `MapboxNavigationProvider` per process; it outlives JS reloads.
@@ -27,12 +28,18 @@ final class RNMBXNavigationSession {
     didSet { applyVoiceMuted() }
   }
 
-  private(set) var provider: MapboxNavigationProvider?
+  @Published private(set) var provider: MapboxNavigationProvider?
   private var subscriptions = Set<AnyCancellable>()
   /// Kept until navigation stops, whether or not JS releases its `Route`.
   private var guidanceRoute: RNMBXNavigationRoute?
 
-  var accessToken: String?
+  var accessToken: String? {
+    didSet {
+      if let provider, let accessToken, accessToken != provider.coreConfig.credentials.navigation.accessToken {
+        Logger.log(level: .warn, message: "Navigation.setAccessToken: the session already uses another token, e.g. from Info.plist")
+      }
+    }
+  }
 
   func mapboxNavigation() throws -> MapboxNavigation {
     if let provider {

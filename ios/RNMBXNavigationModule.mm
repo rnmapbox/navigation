@@ -42,6 +42,12 @@
     _navigation.onVoiceInstruction = ^(NSDictionary *event) {
       [weakSelf emitOnVoiceInstruction:event];
     };
+    _navigation.onCarPlayConnectionChange = ^(NSDictionary *event) {
+      [weakSelf emitOnCarPlayConnectionChange:event];
+    };
+    _navigation.onCarMapChange = ^(NSDictionary *event) {
+      [weakSelf emitOnCarMapChange:event];
+    };
   }
   return self;
 }
@@ -94,6 +100,16 @@
 - (NSNumber *)isVoiceMuted
 {
   return @([_navigation isVoiceMuted]);
+}
+
+- (NSNumber *)isCarPlayConnected
+{
+  return @([_navigation isCarPlayConnected]);
+}
+
+- (NSDictionary *)getCarMap
+{
+  return [_navigation carMap];
 }
 
 - (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime

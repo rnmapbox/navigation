@@ -137,6 +137,27 @@ export type CameraStateEvent = {
   state: string;
 };
 
+/**
+ * From {@link Navigation.addCarPlayConnectionListener}.
+ *
+ * @group Events
+ */
+export type CarPlayConnectionEvent = {
+  connected: boolean;
+};
+
+/**
+ * The car screen's map, see {@link CarMap}.
+ *
+ * @group Events
+ */
+export type CarMapEvent = {
+  /** Changes whenever the car screen switches to another map; 0 if no car screen shows a map. */
+  id: CodegenTypes.Int32;
+  /** "browsing" (idle or free drive) or "navigating" (turn-by-turn guidance). */
+  activity: string;
+};
+
 export interface Spec extends TurboModule {
   setAccessToken(accessToken: string): void;
   getSdkVersion(): string;
@@ -149,6 +170,8 @@ export interface Spec extends TurboModule {
   getCameraState(): string;
   setVoiceMuted(muted: boolean): void;
   isVoiceMuted(): boolean;
+  isCarPlayConnected(): boolean;
+  getCarMap(): CarMapEvent;
 
   readonly onRouteProgress: CodegenTypes.EventEmitter<RouteProgressEvent>;
   readonly onCameraStateChange: CodegenTypes.EventEmitter<CameraStateEvent>;
@@ -156,6 +179,8 @@ export interface Spec extends TurboModule {
   readonly onArrive: CodegenTypes.EventEmitter<ArriveEvent>;
   readonly onOffRouteChange: CodegenTypes.EventEmitter<OffRouteEvent>;
   readonly onVoiceInstruction: CodegenTypes.EventEmitter<VoiceInstructionEvent>;
+  readonly onCarPlayConnectionChange: CodegenTypes.EventEmitter<CarPlayConnectionEvent>;
+  readonly onCarMapChange: CodegenTypes.EventEmitter<CarMapEvent>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('RNMBXNavigationModule');
