@@ -3,7 +3,7 @@ import Combine
 import MapboxMaps
 import MapboxNavigationCore
 // Some CarPlayManagerDelegate requirements have their default implementations only in this SPI.
-@_spi(MapboxInternal) import MapboxNavigationUIKit
+@_spi(MapboxCarPlayInternal) import MapboxNavigationUIKit
 
 /// `UISceneDelegateClassName` of the CarPlay scene in Info.plist, set by the Expo config plugin's `carPlay` option.
 @objc(RNMBXNavigationCarPlaySceneDelegate)
