@@ -1,5 +1,6 @@
 const {
   applyAndroidAutoManifest,
+  applyBackgroundAudio,
   applyCarPlayAppDelegate,
   applyCarPlayInfoPlist,
   removeAndroidAutoManifest,
@@ -57,6 +58,21 @@ target 'App' do`);
     expect(() => applyPodfileModifications('platform :ios', {})).toThrow(
       /no line matching/
     );
+  });
+});
+
+describe('applyBackgroundAudio', () => {
+  it('adds audio next to existing modes', () => {
+    expect(
+      applyBackgroundAudio({ UIBackgroundModes: ['location'] })
+        .UIBackgroundModes
+    ).toEqual(['location', 'audio']);
+  });
+
+  it('adds it only once', () => {
+    expect(
+      applyBackgroundAudio(applyBackgroundAudio({})).UIBackgroundModes
+    ).toEqual(['audio']);
   });
 });
 

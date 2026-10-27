@@ -29,6 +29,8 @@ const DEFAULT_LOCATION_USAGE =
  * @property {boolean} [carPlayRoot] With `carPlay`, hands the app delegate's React Native factory to the CarPlay
  *   scene, so the component passed to `Navigation.registerCarPlayRoot` renders, and React Native starts, when CarPlay
  *   launches the app without its phone UI.
+ * @property {boolean} [backgroundAudio] Adds `audio` to iOS `UIBackgroundModes`, so voice guidance keeps
+ *   speaking in the background; defaults to `true`, `false` leaves the background modes unchanged.
  */
 
 /**
@@ -119,6 +121,18 @@ function applyPodfileModifications(podfile, { RNMapboxNavigationVersion }) {
     offset: 1,
   });
   return src;
+}
+
+/**
+ * Adds `audio` to `UIBackgroundModes` once.
+ * @param {Record<string, any>} infoPlist
+ */
+function applyBackgroundAudio(infoPlist) {
+  const modes = infoPlist.UIBackgroundModes ?? [];
+  if (!modes.includes('audio')) {
+    infoPlist.UIBackgroundModes = [...modes, 'audio'];
+  }
+  return infoPlist;
 }
 
 const CARPLAY_SCENE_ROLE = 'CPTemplateApplicationSceneSessionRoleApplication';
@@ -328,6 +342,7 @@ const withMapboxNavigation = (config, props) => {
     carPlay,
     carPlayRoot,
     androidAuto,
+    backgroundAudio = true,
   } = props ?? {};
 
   config = withPodfile(config, (podfileConfig) => {
@@ -337,6 +352,14 @@ const withMapboxNavigation = (config, props) => {
     );
     return podfileConfig;
   });
+
+  if (backgroundAudio) {
+    // The SDK's voice controller asserts on this in debug builds as soon as guidance starts.
+    config = withInfoPlist(config, (plistConfig) => {
+      plistConfig.modResults = applyBackgroundAudio(plistConfig.modResults);
+      return plistConfig;
+    });
+  }
 
   if (locationWhenInUsePermission !== false) {
     config = withInfoPlist(config, (plistConfig) => {
@@ -413,3 +436,4 @@ module.exports.applyCarPlayAppDelegate = applyCarPlayAppDelegate;
 module.exports.updateCarPlayAppDelegate = updateCarPlayAppDelegate;
 module.exports.removeAndroidAutoManifest = removeAndroidAutoManifest;
 module.exports.applyAndroidAutoManifest = applyAndroidAutoManifest;
+module.exports.applyBackgroundAudio = applyBackgroundAudio;
