@@ -41,7 +41,7 @@ object RNMBXNavigationCarMaps : RNMBXNavigationSession.Listener {
 
   fun register() {
     RNMBXMapViewFactory.registerExternalMap(MAP_VIEW_IMPL) { impl, _ ->
-      // A `<CarMap>` still rendering a map that was replaced meanwhile gets nothing; it remounts with the new id.
+      // A `<CarMap>` still rendering a map that was replaced meanwhile gets no map until it remounts with the new id.
       map.takeIf { impl.substringAfter(":", "").toIntOrNull() == current.id }
     }
     RNMBXNavigationSession.addListener(this)
@@ -130,7 +130,10 @@ class RNMBXNavigationCarMapSurface(private val context: Context) : RNMBXNavigati
   fun surfaceDestroyed() {
     val mapSurface = mapSurface ?: return
     RNMBXNavigationSession.removeListener(this)
-    externalMap?.let { RNMBXNavigationCarMaps.detach(it) }
+    externalMap?.let {
+      RNMBXNavigationCarMaps.detach(it)
+      it.invalidate()
+    }
     externalMap = null
     mapSurface.surfaceDestroyed()
     mapSurface.onStop()
