@@ -48,9 +48,14 @@ final class RNMBXNavigationCarPlay: NSObject {
 
   func connect(_ scene: CPTemplateApplicationScene, _ interfaceController: CPInterfaceController, _ window: CPWindow) {
     connected = true
-    // The provider exists once JS has set the access token, which can be after the car connects.
-    _ = try? RNMBXNavigationSession.shared.mapboxNavigation()
-    RNMBXNavigationSession.shared.$provider
+    let session = RNMBXNavigationSession.shared
+    // CarPlay can launch the app without the phone scene, so React Native may never run to set the token.
+    if session.accessToken == nil {
+      session.accessToken = MapboxOptions.accessToken
+    }
+    // Without a token in Info.plist, the provider exists only once JS has set one.
+    _ = try? session.mapboxNavigation()
+    session.$provider
       .compactMap { $0 }
       .first()
       .sink { [weak self] provider in
