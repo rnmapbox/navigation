@@ -98,6 +98,14 @@ final class RNMBXNavigationCarPlay: NSObject {
   private var reactRootView: UIView?
   private var subscriptions = Set<AnyCancellable>()
 
+  /// `beginNavigationWithCarPlay` runs asynchronously and ends in `startActiveGuidance` from leg 0.
+  private struct PendingGuidance {
+    var legIndex: Int
+    var cancelled = false
+  }
+
+  private var pendingGuidance: PendingGuidance?
+
   func connect(_ scene: CPTemplateApplicationScene, _ interfaceController: CPInterfaceController, _ window: CPWindow) {
     connected = true
     let session = RNMBXNavigationSession.shared
@@ -126,6 +134,7 @@ final class RNMBXNavigationCarPlay: NSObject {
 
   func disconnect(_ scene: CPTemplateApplicationScene, _ interfaceController: CPInterfaceController, _ window: CPWindow) {
     subscriptions.removeAll()
+    pendingGuidance = nil
     reactRootView?.removeFromSuperview()
     reactRootView = nil
     manager?.templateApplicationScene(scene, didDisconnect: interfaceController, from: window)
@@ -170,12 +179,25 @@ final class RNMBXNavigationCarPlay: NSObject {
 
   private func followGuidance(_ guiding: Bool) {
     guard let manager else { return }
-    if guiding, manager.carPlayNavigationViewController == nil {
-      let location = RNMBXNavigationSession.shared.location?.coordinate ?? kCLLocationCoordinate2DInvalid
-      manager.beginNavigationWithCarPlay(using: location)
-    } else if !guiding, let navigationViewController = manager.carPlayNavigationViewController {
+    if guiding {
+      guard manager.carPlayNavigationViewController == nil, pendingGuidance == nil else { return }
+      let session = RNMBXNavigationSession.shared
+      pendingGuidance = PendingGuidance(legIndex: session.routeProgress?.legIndex ?? 0)
+      manager.beginNavigationWithCarPlay(using: session.location?.coordinate ?? kCLLocationCoordinate2DInvalid)
+    } else if let navigationViewController = manager.carPlayNavigationViewController {
       navigationViewController.exitNavigation(byCanceling: true)
+    } else {
+      pendingGuidance?.cancelled = true
     }
+  }
+
+  /// The view controller has just restarted guidance from leg 0; put the phone's trip back as it was.
+  private func takeOverGuidance() {
+    guard let pending = pendingGuidance, !pending.cancelled, pending.legIndex > 0,
+          let tripSession = RNMBXNavigationSession.shared.provider?.mapboxNavigation.tripSession(),
+          let routes = tripSession.currentNavigationRoutes
+    else { return }
+    tripSession.startActiveGuidance(with: routes, startLegIndex: pending.legIndex)
   }
 }
 
@@ -192,7 +214,22 @@ extension RNMBXNavigationCarPlay: CarPlayManagerDelegate {
     willPresent navigationViewController: CarPlayNavigationViewController
   ) {
     MainActor.assumeIsolated {
+      takeOverGuidance()
       show(navigationViewController.navigationMapView?.mapView, activity: "navigating")
+    }
+  }
+
+  nonisolated func carPlayManager(
+    _ carPlayManager: CarPlayManager,
+    didPresent navigationViewController: CarPlayNavigationViewController
+  ) {
+    MainActor.assumeIsolated {
+      let cancelled = pendingGuidance?.cancelled ?? false
+      pendingGuidance = nil
+      // The phone stopped while CarPlay was still starting; ending here stops the guidance CarPlay restarted.
+      if cancelled {
+        navigationViewController.exitNavigation(byCanceling: true)
+      }
     }
   }
 
