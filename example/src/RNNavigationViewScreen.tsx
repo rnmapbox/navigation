@@ -9,7 +9,7 @@ import Navigation, {
 } from '@rnmapbox/navigation';
 
 const APPEARANCES: RNNavigationViewAppearance[] = ['auto', 'day', 'night'];
-const SIMULATION_SPEEDS = [1, 2, 4, 8];
+const SIMULATION_SPEEDS = [1, 2, 4];
 const VOICE_VOLUMES = [1, 0.5, 0.2];
 
 // Through the city to the Bay Bridge, which has lanes and posted speed limits.

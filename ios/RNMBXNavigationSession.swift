@@ -46,6 +46,7 @@ final class RNMBXNavigationSession {
   /// internal, or without auto-advancing, since the SDK's simulator drives on past waypoints.
   private var simulator: RNMBXNavigationSimulator?
   private var needsCustomSimulator: Bool { simulationSpeed != 1 || !autoAdvanceLegs }
+  private var simulationUpdatePending = false
 
   @Published private(set) var provider: MapboxNavigationProvider?
   private var subscriptions = Set<AnyCancellable>()
@@ -201,6 +202,17 @@ final class RNMBXNavigationSession {
     }
     // The SDK's would drive on past the waypoint our simulation waits at; switches once guidance moves on.
     guard needsCustomSimulator != (simulator != nil), simulator?.isWaiting(onLeg: routeProgress.legIndex) != true else { return }
+    // Switching replaces the speech synthesizer, which cuts off the instruction it's speaking.
+    if let provider, provider.routeVoiceController.speechSynthesizer.isSpeaking {
+      guard !simulationUpdatePending else { return }
+      simulationUpdatePending = true
+      Task {
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        simulationUpdatePending = false
+        updateSimulation()
+      }
+      return
+    }
     restartSimulation(routeProgress.navigationRoutes, from: location)
   }
 

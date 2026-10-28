@@ -111,8 +111,8 @@ export const Navigation = {
 
   /**
    * Ends the current leg and guides to the next waypoint, e.g. to skip a stop, or after an arrival with
-   * {@link setAutoAdvanceLegs} off. Does nothing on the last leg or without active guidance. Simulated guidance jumps
-   * to the start of the new leg.
+   * {@link setAutoAdvanceLegs} off. Does nothing on the last leg or without active guidance. Away from the waypoint,
+   * guidance reroutes from where it is; simulated guidance jumps to the start of the new leg and reroutes again.
    */
   advanceToNextLeg(): void {
     NativeNavigation.advanceToNextLeg();
@@ -131,7 +131,8 @@ export const Navigation = {
   /**
    * Speed of simulated guidance relative to the route's expected speeds, e.g. `4` drives four times faster; the
    * default is `1`. Applies to the running and later simulations. Simulated locations keep reporting the route's
-   * speed, not multiplied. Throws unless `multiplier` is positive.
+   * speed, not multiplied. From about 4×, guidance can go off-route at U-turns and reroute; on Android the simulation
+   * doesn't follow reroutes, so it can then stop short of the destination. Throws unless `multiplier` is positive.
    */
   setSimulationSpeed(multiplier: number): void {
     if (!(multiplier > 0)) {
