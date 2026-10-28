@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import com.mapbox.api.directions.v5.models.VoiceInstructions
 import com.mapbox.common.MapboxOptions
@@ -144,14 +146,19 @@ object RNMBXNavigationSession {
 
   /** Simulated free drive replays this location every second. */
   private var parkedLocation: Point? = null
+  private val parkHandler = Handler(Looper.getMainLooper())
+  // `pushEvents` restarts the replayer clock at the pushed event, which then plays at once: wait before pushing.
   @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
   private val parkedReplayObserver = ReplayEventsObserver { events ->
-    val point = parkedLocation ?: return@ReplayEventsObserver
     val last = events.lastOrNull() ?: return@ReplayEventsObserver
-    MapboxNavigationProvider.retrieve().mapboxReplayer.run {
-      clearPlayedEvents()
-      pushEvents(listOf(ReplayRouteMapper.mapToUpdateLocation(last.eventTimestamp + 1.0, point)))
-    }
+    parkHandler.removeCallbacksAndMessages(null)
+    parkHandler.postDelayed({
+      val point = parkedLocation ?: return@postDelayed
+      MapboxNavigationProvider.retrieve().mapboxReplayer.run {
+        clearPlayedEvents()
+        pushEvents(listOf(ReplayRouteMapper.mapToUpdateLocation(last.eventTimestamp + 1.0, point)))
+      }
+    }, 1000)
   }
 
   /** Set by Android Auto's auto drive, which Play review uses: guidance then simulates. */
@@ -340,8 +347,11 @@ object RNMBXNavigationSession {
       navigation.resetTripSession {
         if (tripStart === start) park(navigation, simulatedLocation)
       }
-    } else if (simulate && last != null) {
-      park(navigation, Point.fromLngLat(last.longitude, last.latitude))
+    } else if (simulate) {
+      if (last != null) park(navigation, Point.fromLngLat(last.longitude, last.latitude))
+    } else {
+      // Otherwise the navigator drops live locations older than the last simulated one.
+      navigation.resetTripSession {}
     }
   }
 
@@ -410,6 +420,7 @@ object RNMBXNavigationSession {
   private fun unpark(navigation: MapboxNavigation) {
     if (parkedLocation == null) return
     parkedLocation = null
+    parkHandler.removeCallbacksAndMessages(null)
     navigation.mapboxReplayer.unregisterObserver(parkedReplayObserver)
   }
 
