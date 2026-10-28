@@ -2,6 +2,7 @@ package com.rnmapbox.rnmbxnav
 
 import com.facebook.proguard.annotations.DoNotStrip
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableArray
@@ -28,6 +29,14 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
 
   // Read on the JS thread; the session is main thread only.
   @Volatile private var voiceMuted = false
+
+  private val lifecycleListener = object : LifecycleEventListener {
+    override fun onHostResume() = RNMBXNavigationSession.updateKeepScreenOn()
+
+    override fun onHostPause() = Unit
+
+    override fun onHostDestroy() = Unit
+  }
 
   init {
     UiThreadUtil.runOnUiThread {
@@ -57,7 +66,9 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
       }
       RNMBXNavigationCarMaps.observer = { carMap -> emitOnCarMapChange(carMapEvent(carMap)) }
       RNMBXNavigationCarPreview.register(reactContext)
+      RNMBXNavigationSession.activity = { reactContext.currentActivity }
     }
+    reactContext.addLifecycleEventListener(lifecycleListener)
   }
 
   override fun setAccessToken(accessToken: String) {
@@ -196,6 +207,10 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
     UiThreadUtil.runOnUiThread { RNMBXNavigationSession.simulationSpeed = multiplier }
   }
 
+  override fun setKeepScreenOn(keepScreenOn: Boolean) {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.keepScreenOn = keepScreenOn }
+  }
+
   override fun isCarPlayConnected(): Boolean = false
 
   override fun getCarMap(): WritableMap = carMapEvent(RNMBXNavigationCarMaps.current)
@@ -206,6 +221,7 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
   }
 
   override fun invalidate() {
+    reactApplicationContext.removeLifecycleEventListener(lifecycleListener)
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = null
       RNMBXNavigationSession.routeProgressObserver = null
@@ -216,6 +232,7 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
       RNMBXNavigationSession.routeChangeObserver = null
       RNMBXNavigationCarMaps.observer = null
       RNMBXNavigationSession.stopNavigation()
+      RNMBXNavigationSession.activity = null
     }
     super.invalidate()
   }

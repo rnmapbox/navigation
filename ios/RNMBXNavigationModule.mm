@@ -122,6 +122,11 @@
   [_navigation setSimulationSpeed:multiplier];
 }
 
+- (void)setKeepScreenOn:(BOOL)keepScreenOn
+{
+  [_navigation setKeepScreenOn:keepScreenOn];
+}
+
 - (NSNumber *)isCarPlayConnected
 {
   return @([_navigation isCarPlayConnected]);

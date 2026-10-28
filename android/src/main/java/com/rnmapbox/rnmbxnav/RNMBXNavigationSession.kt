@@ -1,6 +1,8 @@
 package com.rnmapbox.rnmbxnav
 
+import android.app.Activity
 import android.content.Context
+import android.view.View
 import com.mapbox.api.directions.v5.models.VoiceInstructions
 import com.mapbox.common.MapboxOptions
 import com.mapbox.common.location.Location
@@ -27,6 +29,7 @@ import com.mapbox.navigation.voice.api.MapboxSpeechApi
 import com.mapbox.navigation.voice.api.MapboxVoiceInstructionsPlayer
 import com.mapbox.navigation.voice.model.SpeechAnnouncement
 import com.mapbox.navigation.voice.model.SpeechVolume
+import java.lang.ref.WeakReference
 import java.util.Locale
 
 enum class RNMBXNavigationCameraState(val jsName: String) {
@@ -95,6 +98,19 @@ object RNMBXNavigationSession {
   private var guidanceRoute: RNMBXNavigationRoute? = null
   private var guidanceStart: Any? = null
   private var simulating = false
+
+  var keepScreenOn = true
+    set(value) {
+      field = value
+      updateKeepScreenOn()
+    }
+
+  /** Its window is kept on during guidance. */
+  var activity: (() -> Activity?)? = null
+
+  // The view's flag, not the window's, so apps setting `FLAG_KEEP_SCREEN_ON` themselves keep it.
+  private var screenOnView: WeakReference<View>? = null
+  private var viewKeptScreenOn = false
 
   /** Set by Android Auto's auto drive, which Play review uses: guidance then simulates. */
   var autoDrive = false
@@ -232,6 +248,7 @@ object RNMBXNavigationSession {
     navigation.setArrivalController(arrivalController)
     startVoice(navigation.navigationOptions.applicationContext, route)
     guidanceRoute = route
+    updateKeepScreenOn()
     arrivedAtFinalDestination = false
     val start = Any()
     guidanceStart = start
@@ -295,6 +312,19 @@ object RNMBXNavigationSession {
       emptyList()
     }
 
+  /** Also call it when [activity] may have changed. */
+  fun updateKeepScreenOn() {
+    val view = if (guidanceRoute != null && keepScreenOn) activity?.invoke()?.window?.decorView else null
+    val current = screenOnView?.get()
+    if (view === current) return
+    current?.keepScreenOn = viewKeptScreenOn
+    screenOnView = view?.let { WeakReference(it) }
+    if (view != null) {
+      viewKeptScreenOn = view.keepScreenOn
+      view.keepScreenOn = true
+    }
+  }
+
   private fun startVoice(context: Context, route: RNMBXNavigationRoute) {
     stopVoice()
     val language = route.routes.first().directionsRoute.routeOptions()?.language() ?: Locale.getDefault().toLanguageTag()
@@ -317,6 +347,7 @@ object RNMBXNavigationSession {
   @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
   fun stopNavigation() {
     guidanceRoute = null
+    updateKeepScreenOn()
     guidanceStart = null
     offRoute = false
     stopVoice()

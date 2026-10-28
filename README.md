@@ -274,6 +274,7 @@ Their `.netrc` / `MAPBOX_DOWNLOADS_TOKEN` setup can go; this package doesn't nee
 | `addVoiceInstructionListener(listener)`      | Voice instruction text and SSML.                                       |
 | `setVoiceMuted(muted)` / `isVoiceMuted()`    | Mutes the SDK's voice instructions.                                    |
 | `setVoiceVolume(volume)`                     | Volume of the voice instructions, 0 to 1.                              |
+| `setKeepScreenOn(keepScreenOn)`              | Whether guidance keeps the screen on; on by default.                   |
 | `NAVIGATION_MAP_VIEW_IMPL`                   | `mapViewImpl` value for navigation maps.                               |
 | `<NavigationViewport padding />`             | Per-map camera padding.                                                |
 | `<NavigationView route \| waypoints />`      | Full-screen navigation UI; see [NavigationView](#navigationview).      |
@@ -356,6 +357,8 @@ After `stopNavigation`, the route and the puck are removed and the camera eases 
 - `addVoiceInstructionListener`: `{ text, ssml, distanceAlongStep }` when an instruction is due, for apps doing their own text to speech.
 
 The SDK speaks instructions during any guidance. `setVoiceMuted(true)` mutes it, including in `<NavigationView>`.
+
+Guidance keeps the screen on, including in `<NavigationView>`, and puts back the app's own idle timer (iOS) or keep screen on (Android) setting when it stops. `setKeepScreenOn(false)` turns that off for apps that manage it themselves.
 
 ### NavigationView
 

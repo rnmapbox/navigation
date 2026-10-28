@@ -4,6 +4,7 @@ import Foundation
 import MapboxDirections
 import MapboxNavigationCore
 import rnmapbox_maps
+import UIKit
 
 /// Process-wide navigation state shared by the TurboModule and every adopted map.
 /// The SDK allows one `MapboxNavigationProvider` per process; it outlives JS reloads.
@@ -51,7 +52,16 @@ final class RNMBXNavigationSession {
   @Published private(set) var provider: MapboxNavigationProvider?
   private var subscriptions = Set<AnyCancellable>()
   /// Kept until navigation stops, whether or not JS releases its `Route`.
-  private var guidanceRoute: RNMBXNavigationRoute?
+  private var guidanceRoute: RNMBXNavigationRoute? {
+    didSet { updateIdleTimer() }
+  }
+
+  var keepScreenOn = true {
+    didSet { updateIdleTimer() }
+  }
+
+  /// The app's own `isIdleTimerDisabled`, restored when guidance stops.
+  private var appIdleTimerDisabled: Bool?
 
   var accessToken: String? {
     didSet {
@@ -235,6 +245,18 @@ final class RNMBXNavigationSession {
         routeProgress.navigationRoutes,
         from: CLLocation(latitude: start.latitude, longitude: start.longitude)
       )
+    }
+  }
+
+  private func updateIdleTimer() {
+    let application = UIApplication.shared
+    if guidanceRoute != nil, keepScreenOn {
+      guard appIdleTimerDisabled == nil else { return }
+      appIdleTimerDisabled = application.isIdleTimerDisabled
+      application.isIdleTimerDisabled = true
+    } else if let appIdleTimerDisabled {
+      application.isIdleTimerDisabled = appIdleTimerDisabled
+      self.appIdleTimerDisabled = nil
     }
   }
 
