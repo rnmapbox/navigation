@@ -111,8 +111,11 @@ export const Navigation = {
 
   /**
    * Whether guidance requests a new route when the user leaves a route from {@link requestRoutes}. Defaults to `true`.
-   * Matched routes from {@link requestMatchedRoutes} are never rerouted. Android applies it at once; iOS only when the
-   * navigation session is created, so call it before the first request, next to {@link setAccessToken}.
+   * Matched routes from {@link requestMatchedRoutes} are never rerouted.
+   *
+   * Android applies it at once, also during guidance. iOS reads it only when the navigation session is created, which
+   * happens on the first route request or guidance start, so call it before those, e.g. next to
+   * {@link setAccessToken}. On iOS a later call that changes the value has no effect and logs a warning.
    */
   setRerouteEnabled(enabled: boolean): void {
     NativeNavigation.setRerouteEnabled(enabled);

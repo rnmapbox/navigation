@@ -219,9 +219,12 @@ public final class RNMBXNavigation: NSObject {
       do {
         let navigation = try RNMBXNavigationSession.shared.mapboxNavigation()
         let routes = try await navigation.routingProvider().calculateRoutes(options: options).value
-        // Further matches are the other pieces of a trace that didn't match in one piece, not alternatives.
-        guard routes.alternativeRoutes.isEmpty else {
-          reject("no_single_match", "The coordinates match only as \(routes.alternativeRoutes.count + 1) disconnected pieces")
+        // The SDK drops the further pieces of a split match, but `waypoints` keeps their tracepoints.
+        if let end = routes.mainRoute.route.shape?.coordinates.last,
+          let lastTracepoint = routes.waypoints.last?.coordinate,
+          end.distance(to: lastTracepoint) > 1
+        {
+          reject("no_single_match", "The coordinates match only as several disconnected pieces")
           return
         }
         resolve(RNMBXNavigationRoute(routes))

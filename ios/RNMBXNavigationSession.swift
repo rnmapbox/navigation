@@ -75,7 +75,7 @@ final class RNMBXNavigationSession {
   var rerouteEnabled = true {
     didSet {
       if provider != nil, rerouteEnabled != oldValue {
-        Logger.log(level: .warn, message: "Navigation.setRerouteEnabled: iOS applies it only before the first request")
+        Logger.log(level: .warn, message: "Navigation.setRerouteEnabled has no effect after the navigation session was created; call it before the first route request or guidance")
       }
     }
   }

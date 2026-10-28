@@ -258,7 +258,7 @@ Their `.netrc` / `MAPBOX_DOWNLOADS_TOKEN` setup can go; this package doesn't nee
 | `getDefaultDistanceUnit()`                   | `'metric'` or `'imperial'`, from the device's region and measurement settings. |
 | `requestRoutes(options)`                     | `{ main, alternatives }` routes through `options.waypoints`; also `profile`, `alternatives`, `exclude`, `language`, `units`. |
 | `requestMatchedRoutes(options)`              | `{ main }` route along `options.coordinates` (2 to 100), snapped to roads with Map Matching; also `profile`, `waypointIndices`, `radiuses`, `language`, `units`. Never rerouted. |
-| `setRerouteEnabled(enabled)`                 | Turns rerouting of `requestRoutes` routes off or on. iOS applies it only before the first request. |
+| `setRerouteEnabled(enabled)`                 | Turns rerouting of `requestRoutes` routes off or on. Android applies it at once; iOS only if called before the navigation session is created (before the first route request or guidance), and logs a warning for a later change. |
 | `previewRoute(route \| null)`                | Shows a route on navigation maps, or removes it.                       |
 | `startActiveGuidance(route, { simulate })`   | Starts guidance along `route`; `simulate` drives it with simulated locations. |
 | `stopNavigation()`                           | Stops guidance and clears the maps.                                    |
