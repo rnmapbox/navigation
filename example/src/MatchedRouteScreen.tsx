@@ -13,7 +13,7 @@ import Navigation, {
   type Route,
 } from '@rnmapbox/navigation';
 
-// Along the Embarcadero from the Ferry Building to Pier 39, then Jefferson Street to Hyde Street.
+// Along the Embarcadero from the Ferry Building past Pier 29 and Pier 39, then Jefferson Street to Hyde Street.
 const TOUR: Position[] = [
   [-122.3937, 37.7953],
   [-122.3976, 37.799],
@@ -25,7 +25,7 @@ const TOUR: Position[] = [
   [-122.416, 37.808],
   [-122.4203, 37.8074],
 ];
-const PIER_39 = 5;
+const PIER_29 = 3;
 
 const TOUR_LINE = {
   type: 'Feature' as const,
@@ -81,7 +81,7 @@ export default function MatchedRouteScreen({
     try {
       const { main } = await Navigation.requestMatchedRoutes({
         coordinates: TOUR,
-        waypointIndices: [0, PIER_39, TOUR.length - 1],
+        waypointIndices: [0, PIER_29, TOUR.length - 1],
         radiuses: TOUR.map(() => 25),
       });
       Navigation.previewRoute(main);
@@ -129,7 +129,7 @@ export default function MatchedRouteScreen({
         testID="matched-map"
       >
         <Camera
-          defaultSettings={{ centerCoordinate: TOUR[PIER_39], zoomLevel: 13.5 }}
+          defaultSettings={{ centerCoordinate: TOUR[PIER_29], zoomLevel: 13.5 }}
         />
         <ShapeSource id="tour" shape={TOUR_LINE}>
           <LineLayer id="tour-line" style={TOUR_LINE_STYLE} />
