@@ -49,12 +49,12 @@ Then run `npx expo prebuild --clean`. On iOS the `@rnmapbox/navigation` plugin:
 - sets `$RNMapboxMapsSwiftPackageManager = { link: false }` in the Podfile, see [iOS](#ios);
 - adds the Navigation SDK's binary frameworks to `rnmapbox-maps`' framework search paths, which Xcode 26 needs with React Native 0.88+;
 - sets `NSLocationWhenInUseUsageDescription`, unless `locationWhenInUsePermission` is `false`;
-- adds `audio` to `UIBackgroundModes`, so voice instructions keep playing in the background, unless `backgroundAudio` is `false`. Without it the Navigation SDK asserts in debug builds when guidance starts. Declare it only if your app speaks guidance; App Review rejects unused background modes;
+- adds `audio` to `UIBackgroundModes`: the Navigation SDK asserts in debug builds without it on any guidance start, even with voice muted;
 - with `carPlay: true`, adds the CarPlay scene and the `com.apple.developer.carplay-maps` entitlement, and with `carPlayRoot: true` also hands the `AppDelegate.swift` React Native factory to CarPlay, see [CarPlay](#carplay).
 
 On Android the `@rnmapbox/maps` plugin already adds the Mapbox Maven repository, and the Navigation SDK's manifest adds the location, foreground service and notification permissions. With `androidAuto: true` the plugin adds the Android Auto service, its metadata and the `androidx.car.app` navigation and surface permissions, see [Android Auto](#android-auto).
 
-Options: `carPlay`, `carPlayRoot` and `androidAuto` as above, `RNMapboxNavigationVersion` sets the Navigation SDK version on both platforms (set the maps plugin's `RNMapboxMapsVersion` to the matching 11.N), `locationWhenInUsePermission` sets the usage string, and `backgroundAudio: false` leaves `UIBackgroundModes` alone. Turning `carPlay`, `carPlayRoot` or `androidAuto` off removes what they added on the next prebuild, except the entitlement and the permissions; `prebuild --clean` removes those too.
+Options: `carPlay`, `carPlayRoot` and `androidAuto` as above, `RNMapboxNavigationVersion` sets the Navigation SDK version on both platforms (set the maps plugin's `RNMapboxMapsVersion` to the matching 11.N), and `locationWhenInUsePermission` sets the usage string. Turning `carPlay`, `carPlayRoot` or `androidAuto` off removes what they added on the next prebuild, except the entitlement and the permissions; `prebuild --clean` removes those too.
 
 ### iOS
 
@@ -80,7 +80,7 @@ end
 
 `pod install` adds `MapboxCommon`, `MapboxCoreMaps`, `MapboxNavigationNative` and `Turf` to the frameworks CocoaPods embeds; Xcode doesn't embed the dynamic frameworks of a package that's only linked through a pod. It uses the helper in `@rnmapbox/maps`' `ios/rnmapbox_spm.rb`.
 
-Add `NSLocationWhenInUseUsageDescription` to your `Info.plist`. For `<NavigationView>`, also add `audio` to `UIBackgroundModes`: the SDK's voice controller asserts on it in debug builds.
+Add `NSLocationWhenInUseUsageDescription` to your `Info.plist`, and `audio` to `UIBackgroundModes`: the SDK's voice controller asserts on it in debug builds on any guidance start, not only `<NavigationView>`.
 
 Podfile options (set them before `use_native_modules!`):
 

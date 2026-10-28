@@ -29,8 +29,7 @@ const DEFAULT_LOCATION_USAGE =
  * @property {boolean} [carPlayRoot] With `carPlay`, hands the app delegate's React Native factory to the CarPlay
  *   scene, so the component passed to `Navigation.registerCarPlayRoot` renders, and React Native starts, when CarPlay
  *   launches the app without its phone UI.
- * @property {boolean} [backgroundAudio] Adds `audio` to iOS `UIBackgroundModes`, so voice guidance keeps
- *   speaking in the background; defaults to `true`, `false` leaves the background modes unchanged.
+ * @property {boolean} [backgroundAudio] Removed and ignored: the plugin always adds `audio` to `UIBackgroundModes`.
  */
 
 /**
@@ -342,7 +341,6 @@ const withMapboxNavigation = (config, props) => {
     carPlay,
     carPlayRoot,
     androidAuto,
-    backgroundAudio = true,
   } = props ?? {};
 
   config = withPodfile(config, (podfileConfig) => {
@@ -353,13 +351,16 @@ const withMapboxNavigation = (config, props) => {
     return podfileConfig;
   });
 
-  if (backgroundAudio) {
-    // The SDK's voice controller asserts on this in debug builds as soon as guidance starts.
-    config = withInfoPlist(config, (plistConfig) => {
-      plistConfig.modResults = applyBackgroundAudio(plistConfig.modResults);
-      return plistConfig;
-    });
+  if (props && 'backgroundAudio' in props) {
+    WarningAggregator.addWarningIOS(
+      pkg.name,
+      'backgroundAudio was removed and is ignored: the Navigation SDK asserts in debug builds without the audio background mode on any guidance start, so the plugin always adds it'
+    );
   }
+  config = withInfoPlist(config, (plistConfig) => {
+    plistConfig.modResults = applyBackgroundAudio(plistConfig.modResults);
+    return plistConfig;
+  });
 
   if (locationWhenInUsePermission !== false) {
     config = withInfoPlist(config, (plistConfig) => {
