@@ -108,7 +108,7 @@ function applyPodfileModifications(podfile, { RNMapboxNavigationVersion }) {
   src = addGeneratedBlock(src, {
     tag: '@rnmapbox/navigation-post_install',
     lines: [
-      // With explicit Swift modules (Xcode 26 and React Native 0.88+), rnmapbox-maps only finds the binary
+      // With explicit Swift modules (Xcode 26 and React Native 0.87+), rnmapbox-maps only finds the binary
       // frameworks of the Navigation SDK package (MapboxCommon, MapboxCoreMaps, Turf) on a framework search path.
       "    installer.pods_project.targets.select { |t| t.name == 'rnmapbox-maps' }.each do |target|",
       '      target.build_configurations.each do |config|',
@@ -334,6 +334,33 @@ function removeAndroidAutoManifest(manifest) {
   return manifest;
 }
 
+/**
+ * Returns a warning when the `@rnmapbox/maps` plugin's `RNMapboxMapsVersion` isn't the Maps 11.N that Navigation SDK
+ * 3.N pins, which otherwise only fails later, in Gradle or Swift package resolution.
+ * @param {{ plugins?: unknown[] }} config
+ * @param {string} navigationVersion
+ * @returns {string | undefined}
+ */
+function mapsVersionMismatchWarning(config, navigationVersion) {
+  const mapsPlugin = (config.plugins ?? []).find(
+    (plugin) => Array.isArray(plugin) && plugin[0] === '@rnmapbox/maps'
+  );
+  /** @type {string | undefined} */
+  const mapsVersion = Array.isArray(mapsPlugin)
+    ? mapsPlugin[1]?.RNMapboxMapsVersion
+    : undefined;
+  const mapsMinor = mapsVersion?.match(/(\d+)\.(\d+)/);
+  const navigationMinor = navigationVersion.match(/^3\.(\d+)/);
+  if (!mapsMinor || !navigationMinor) {
+    return undefined;
+  }
+  if (mapsMinor[1] === '11' && mapsMinor[2] === navigationMinor[1]) {
+    return undefined;
+  }
+  const expected = navigationVersion.replace(/^3\./, '11.');
+  return `Navigation SDK ${navigationVersion} needs Maps SDK ${expected}, but the @rnmapbox/maps plugin sets RNMapboxMapsVersion to ${mapsVersion}`;
+}
+
 /** @type {import('expo/config-plugins').ConfigPlugin<MapboxNavigationPluginProps | void>} */
 const withMapboxNavigation = (config, props) => {
   const {
@@ -346,6 +373,13 @@ const withMapboxNavigation = (config, props) => {
   } = props ?? {};
 
   config = withPodfile(config, (podfileConfig) => {
+    const mapsWarning = mapsVersionMismatchWarning(
+      podfileConfig,
+      RNMapboxNavigationVersion ?? pkg.mapboxNavigation.ios
+    );
+    if (mapsWarning) {
+      WarningAggregator.addWarningIOS(pkg.name, mapsWarning);
+    }
     podfileConfig.modResults.contents = applyPodfileModifications(
       podfileConfig.modResults.contents,
       { RNMapboxNavigationVersion }
@@ -400,6 +434,13 @@ const withMapboxNavigation = (config, props) => {
   });
 
   config = withAndroidManifest(config, (manifestConfig) => {
+    const mapsWarning = mapsVersionMismatchWarning(
+      manifestConfig,
+      RNMapboxNavigationVersion ?? pkg.mapboxNavigation.android
+    );
+    if (mapsWarning) {
+      WarningAggregator.addWarningAndroid(pkg.name, mapsWarning);
+    }
     manifestConfig.modResults = androidAuto
       ? applyAndroidAutoManifest(manifestConfig.modResults)
       : removeAndroidAutoManifest(manifestConfig.modResults);
@@ -437,3 +478,4 @@ module.exports.updateCarPlayAppDelegate = updateCarPlayAppDelegate;
 module.exports.removeAndroidAutoManifest = removeAndroidAutoManifest;
 module.exports.applyAndroidAutoManifest = applyAndroidAutoManifest;
 module.exports.applyBackgroundAudio = applyBackgroundAudio;
+module.exports.mapsVersionMismatchWarning = mapsVersionMismatchWarning;

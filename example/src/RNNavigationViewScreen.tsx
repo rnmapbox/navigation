@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Mapbox from '@rnmapbox/maps';
 import Navigation, {
   RNNavigationView,
   type DistanceUnit,
@@ -30,6 +31,14 @@ export default function RNNavigationViewScreen({
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>();
   const [appearance, setAppearance] =
     useState<RNNavigationViewAppearance>('auto');
+
+  const start = async (next: Waypoint[]) => {
+    // On iOS the Navigation SDK asks for location permission itself.
+    if (!simulate && Platform.OS === 'android') {
+      await Mapbox.requestAndroidLocationPermissions();
+    }
+    setWaypoints(next);
+  };
 
   if (!waypoints) {
     return (
@@ -70,17 +79,14 @@ export default function RNNavigationViewScreen({
         <Button
           label="Ferry Building"
           onPress={() =>
-            setWaypoints([
-              origin,
-              { coordinate: destination, name: 'Ferry Building' },
-            ])
+            start([origin, { coordinate: destination, name: 'Ferry Building' }])
           }
           testID="rn-screen-ferry-building"
         />
         <Button
           label="Treasure Island via Bay Bridge"
           onPress={() =>
-            setWaypoints([
+            start([
               origin,
               { coordinate: TREASURE_ISLAND, name: 'Treasure Island' },
             ])
@@ -90,10 +96,7 @@ export default function RNNavigationViewScreen({
         <Button
           label="Civic Center to Oakland"
           onPress={() =>
-            setWaypoints([
-              CIVIC_CENTER,
-              { coordinate: OAKLAND, name: 'Oakland' },
-            ])
+            start([CIVIC_CENTER, { coordinate: OAKLAND, name: 'Oakland' }])
           }
           testID="rn-screen-oakland"
         />

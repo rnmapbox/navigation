@@ -7,6 +7,7 @@ const {
   removeCarPlayInfoPlist,
   updateCarPlayAppDelegate,
   applyPodfileModifications,
+  mapsVersionMismatchWarning,
 } = require('../withMapboxNavigation');
 
 const PODFILE = `platform :ios, '16.4'
@@ -289,5 +290,38 @@ describe('removeAndroidAutoManifest', () => {
     expect(application.service).toEqual([]);
     expect(application['meta-data']).toEqual([]);
     expect(manifest.manifest['uses-permission']).toHaveLength(2);
+  });
+});
+
+describe('mapsVersionMismatchWarning', () => {
+  /** @param {string} [RNMapboxMapsVersion] */
+  const withMaps = (RNMapboxMapsVersion) => ({
+    plugins: [
+      ['@rnmapbox/maps', { RNMapboxMapsVersion }],
+      '@rnmapbox/navigation',
+    ],
+  });
+
+  it('accepts the Maps version the Navigation SDK pins', () => {
+    expect(mapsVersionMismatchWarning(withMaps('11.33.0'), '3.33.0')).toBe(
+      undefined
+    );
+    expect(mapsVersionMismatchWarning(withMaps('= 11.33.0'), '3.33.0')).toBe(
+      undefined
+    );
+  });
+
+  it('warns about a different Maps minor version', () => {
+    expect(mapsVersionMismatchWarning(withMaps('11.23.1'), '3.33.0')).toBe(
+      'Navigation SDK 3.33.0 needs Maps SDK 11.33.0, but the @rnmapbox/maps plugin sets RNMapboxMapsVersion to 11.23.1'
+    );
+  });
+
+  it('ignores a missing plugin or version', () => {
+    expect(mapsVersionMismatchWarning({}, '3.33.0')).toBe(undefined);
+    expect(
+      mapsVersionMismatchWarning({ plugins: ['@rnmapbox/maps'] }, '3.33.0')
+    ).toBe(undefined);
+    expect(mapsVersionMismatchWarning(withMaps(), '3.33.0')).toBe(undefined);
   });
 });

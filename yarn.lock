@@ -3387,7 +3387,7 @@ __metadata:
   peerDependencies:
     "@rnmapbox/maps": ">=10.3.16 <10.4.0"
     react: "*"
-    react-native: "*"
+    react-native: ">=0.79"
   languageName: unknown
   linkType: soft
 

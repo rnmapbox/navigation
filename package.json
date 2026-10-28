@@ -46,6 +46,7 @@
   "keywords": [
     "react-native",
     "react-native-mapbox",
+    "react-native-mapbox-navigation",
     "rnmapbox",
     "mapbox",
     "mapbox-navigation",
@@ -62,6 +63,8 @@
     "gps",
     "ios",
     "android",
+    "carplay",
+    "android-auto",
     "expo",
     "expo-config-plugin",
     "new-architecture",
@@ -111,7 +114,7 @@
   "peerDependencies": {
     "@rnmapbox/maps": ">=10.3.16 <10.4.0",
     "react": "*",
-    "react-native": "*"
+    "react-native": ">=0.79"
   },
   "workspaces": [
     "example",

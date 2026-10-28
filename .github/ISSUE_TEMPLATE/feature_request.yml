@@ -1,0 +1,42 @@
+name: 💡 Feature request
+description: Suggest a new feature or an API this library doesn't expose yet.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # Feature request
+
+        👋 Hi!
+
+        Please check the [open issues](https://github.com/rnmapbox/navigation/issues) for a similar request first.
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What are you trying to build, and what's missing?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: How would you like to use it from JS? A code sample helps.
+      render: tsx
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Platforms
+      multiple: true
+      options:
+        - iOS
+        - Android
+        - CarPlay
+        - Android Auto
+    validations:
+      required: true
+  - type: input
+    id: native-api
+    attributes:
+      label: Native SDK API
+      description: If the Mapbox Navigation SDK already has it, link the iOS and/or Android API.
