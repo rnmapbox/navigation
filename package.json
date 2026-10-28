@@ -1,6 +1,6 @@
 {
   "name": "@rnmapbox/navigation",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Turn-by-turn navigation for React Native with the Mapbox Navigation SDK v3 (iOS & Android): routing, active guidance and a drop-in NavigationView. New Architecture and Expo config plugin, built on @rnmapbox/maps.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
