@@ -51,21 +51,41 @@ struct RouteResult {
   std::shared_ptr<NativeRoute> native;
 };
 
+struct Coordinate {
+  double longitude = 0;
+  double latitude = 0;
+};
+
 struct Waypoint {
   double longitude = 0;
   double latitude = 0;
   std::optional<std::string> name;
+  bool silent = false;
+  /// "unrestricted" or "curb".
+  std::optional<std::string> approach;
 };
 
+/// Validated by `validateRequest` in src/Route.ts.
 struct RouteRequest {
   std::vector<Waypoint> waypoints;
   /// Mapbox Directions profile without the `mapbox/` prefix, e.g. "driving-traffic".
   std::string profile = "driving-traffic";
   bool alternatives = false;
   std::vector<std::string> exclude;
+  std::vector<Coordinate> excludePoints;
   std::optional<std::string> language;
   /// "metric" or "imperial".
   std::optional<std::string> units;
+  /// Meters.
+  std::optional<double> maxHeight;
+  /// Meters.
+  std::optional<double> maxWidth;
+  /// Metric tons.
+  std::optional<double> maxWeight;
+  /// `YYYY-MM-DDThh:mm`, local time at the origin.
+  std::optional<std::string> departAt;
+  /// `YYYY-MM-DDThh:mm`, local time at the destination.
+  std::optional<std::string> arriveBy;
 };
 
 /// Validated in JS, see `matchedRouteRequestError` in src/Route.ts.

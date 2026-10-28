@@ -1,7 +1,7 @@
 import Combine
 import CoreLocation
 import Foundation
-import MapboxDirections
+@_spi(ExperimentalMapboxAPI) import MapboxDirections
 import MapboxNavigationCore
 
 @objc(RNMBXNavigation)
@@ -141,10 +141,13 @@ public final class RNMBXNavigation: NSObject {
       guard let longitude = (waypoint["longitude"] as? NSNumber)?.doubleValue,
             let latitude = (waypoint["latitude"] as? NSNumber)?.doubleValue
       else { return nil }
-      return Waypoint(
+      var result = Waypoint(
         coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
         name: waypoint["name"] as? String
       )
+      result.separatesLegs = !(waypoint["silent"] as? Bool ?? false)
+      result.allowsArrivingOnOppositeSide = waypoint["approach"] as? String != "curb"
+      return result
     }
     guard waypoints.count >= 2 else {
       reject("invalid_waypoints", "requestRoutes needs at least an origin and a destination")
@@ -162,6 +165,21 @@ public final class RNMBXNavigation: NSObject {
       }
       options.roadClassesToAvoid = roadClasses
     }
+    options.excludedLocations = (request["excludePoints"] as? [[String: NSNumber]] ?? []).compactMap { point in
+      guard let longitude = point["longitude"], let latitude = point["latitude"] else { return nil }
+      return CLLocationCoordinate2D(latitude: latitude.doubleValue, longitude: longitude.doubleValue)
+    }
+    options.maximumHeight = (request["maxHeight"] as? NSNumber).map { Measurement(value: $0.doubleValue, unit: .meters) }
+    options.maximumWidth = (request["maxWidth"] as? NSNumber).map { Measurement(value: $0.doubleValue, unit: .meters) }
+    options.maximumWeight = (request["maxWeight"] as? NSNumber).map {
+      Measurement(value: $0.doubleValue, unit: .metricTons)
+    }
+    // Mirrors the SDK's internal formatter, so the local time string round-trips to the API unchanged.
+    let timeFormatter = DateFormatter()
+    timeFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+    timeFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+    options.departAt = (request["departAt"] as? String).flatMap(timeFormatter.date(from:))
+    options.arriveBy = (request["arriveBy"] as? String).flatMap(timeFormatter.date(from:))
     if let language = request["language"] as? String {
       options.locale = Locale(identifier: language)
     }

@@ -16,6 +16,7 @@ import {
   toNativeWaypoint,
   type MatchedRouteRequestOptions,
   type Position,
+  validateRequest,
   type Route,
   type RouteChangeEvent,
   type RouteRequestOptions,
@@ -94,12 +95,14 @@ export const Navigation = {
 
   /**
    * Requests routes through `options.waypoints`. The routes hold native memory: `release()` the ones you don't keep.
-   * Rejects with fewer than two waypoints.
+   * Rejects with `code: 'invalid_options'` with fewer than two waypoints, an option the profile doesn't support,
+   * or a value out of range.
    */
   requestRoutes(options: RouteRequestOptions): Promise<RouteResponse> {
-    if (options.waypoints.length < 2) {
+    const invalid = validateRequest(options);
+    if (invalid) {
       return Promise.reject(
-        new Error('requestRoutes needs at least an origin and a destination')
+        Object.assign(new Error(invalid), { code: 'invalid_options' })
       );
     }
     return routeBindings().requestRoutes({

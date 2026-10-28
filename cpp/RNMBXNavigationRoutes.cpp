@@ -27,6 +27,15 @@ std::optional<std::string> optionalString(jsi::Runtime &runtime, const jsi::Obje
   return value.asString(runtime).utf8(runtime);
 }
 
+std::optional<double> optionalNumber(jsi::Runtime &runtime, const jsi::Object &object, const char *name)
+{
+  auto value = object.getProperty(runtime, name);
+  if (value.isUndefined() || value.isNull()) {
+    return std::nullopt;
+  }
+  return value.asNumber();
+}
+
 RouteRequest parseRequest(jsi::Runtime &runtime, const jsi::Value &value)
 {
   auto options = value.asObject(runtime);
@@ -34,10 +43,13 @@ RouteRequest parseRequest(jsi::Runtime &runtime, const jsi::Value &value)
   auto waypoints = options.getPropertyAsObject(runtime, "waypoints").asArray(runtime);
   for (size_t i = 0; i < waypoints.size(runtime); i++) {
     auto waypoint = waypoints.getValueAtIndex(runtime, i).asObject(runtime);
+    auto silent = waypoint.getProperty(runtime, "silent");
     request.waypoints.push_back({
         waypoint.getProperty(runtime, "longitude").asNumber(),
         waypoint.getProperty(runtime, "latitude").asNumber(),
         optionalString(runtime, waypoint, "name"),
+        silent.isBool() && silent.getBool(),
+        optionalString(runtime, waypoint, "approach"),
     });
   }
   if (auto profile = optionalString(runtime, options, "profile")) {
@@ -52,8 +64,21 @@ RouteRequest parseRequest(jsi::Runtime &runtime, const jsi::Value &value)
       request.exclude.push_back(array.getValueAtIndex(runtime, i).asString(runtime).utf8(runtime));
     }
   }
+  auto excludePoints = options.getProperty(runtime, "excludePoints");
+  if (excludePoints.isObject()) {
+    auto array = excludePoints.asObject(runtime).asArray(runtime);
+    for (size_t i = 0; i < array.size(runtime); i++) {
+      auto point = array.getValueAtIndex(runtime, i).asObject(runtime).asArray(runtime);
+      request.excludePoints.push_back({point.getValueAtIndex(runtime, 0).asNumber(), point.getValueAtIndex(runtime, 1).asNumber()});
+    }
+  }
   request.language = optionalString(runtime, options, "language");
   request.units = optionalString(runtime, options, "units");
+  request.maxHeight = optionalNumber(runtime, options, "maxHeight");
+  request.maxWidth = optionalNumber(runtime, options, "maxWidth");
+  request.maxWeight = optionalNumber(runtime, options, "maxWeight");
+  request.departAt = optionalString(runtime, options, "departAt");
+  request.arriveBy = optionalString(runtime, options, "arriveBy");
   return request;
 }
 
