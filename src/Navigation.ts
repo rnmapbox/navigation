@@ -129,10 +129,10 @@ export const Navigation = {
   },
 
   /**
-   * Speed of simulated guidance relative to the route's expected speeds, e.g. `4` drives four times faster; the
-   * default is `1`. Applies to the running and later simulations. Simulated locations keep reporting the route's
-   * speed, not multiplied. From about 4×, guidance can go off-route at U-turns and reroute; on Android the simulation
-   * doesn't follow reroutes, so it can then stop short of the destination. Throws unless `multiplier` is positive.
+   * Speed of simulated guidance relative to the route's expected speeds, e.g. `2` drives twice as fast; the default
+   * is `1`. Applies to the running and later simulations. Simulated locations keep reporting the route's speed, not
+   * multiplied. Higher speeds can make guidance go off-route at sharp turns and reroute, and on Android the
+   * simulation doesn't follow reroutes. Throws unless `multiplier` is positive.
    */
   setSimulationSpeed(multiplier: number): void {
     if (!(multiplier > 0)) {

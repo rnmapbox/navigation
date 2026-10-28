@@ -219,7 +219,7 @@ export function NavigationScreen() {
 | `stopNavigation()`                           | Stops guidance and clears the maps.                                    |
 | `advanceToNextLeg()`                         | Guides to the next waypoint, e.g. to skip a stop.                      |
 | `setAutoAdvanceLegs(enabled)`                | Whether guidance moves on by itself after arriving at a waypoint (default `true`). |
-| `setSimulationSpeed(multiplier)`             | Speed of simulated guidance, e.g. `4` for four times faster.           |
+| `setSimulationSpeed(multiplier)`             | Speed of simulated guidance, e.g. `2` for twice as fast.               |
 | `getRouteStats()`                            | Counts of live, released and garbage-collected routes.                 |
 | `setCameraState(state)` / `getCameraState()` | `'following'`, `'overview'` or `'idle'`.                               |
 | `addCameraStateListener(listener)`           | Camera state changes.                                                  |
