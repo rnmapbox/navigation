@@ -114,6 +114,14 @@ std::unique_ptr<PendingCall> fromCallback(jlong callback)
   return std::unique_ptr<PendingCall>(reinterpret_cast<PendingCall *>(callback));
 }
 
+jni::local_ref<jni::JString> optionalString(const std::optional<std::string> &value)
+{
+  if (!value) {
+    return nullptr;
+  }
+  return jni::make_jstring(*value);
+}
+
 /// Set while JS listens for route changes; `routeChanged` is called on the main thread, the setter on the JS thread.
 std::mutex routeChangeMutex;
 NavigationPlatform::RouteChangeHandler routeChangeHandler;
@@ -181,6 +189,38 @@ class AndroidNavigationPlatform : public NavigationPlatform {
         exclude,
         optional(request.language),
         optional(request.units),
+        toCallback({std::move(resolve), nullptr, std::move(reject)}));
+  }
+
+  void requestMatchedRoutes(
+      const MatchRequest &request,
+      std::function<void(std::vector<RouteResult>)> resolve,
+      RejectCallback reject) override
+  {
+    jni::ThreadScope scope;
+    static const auto method = JModule::javaClassStatic()->getMethod<void(
+        jni::alias_ref<jni::JArrayDouble>,
+        jni::alias_ref<jstring>,
+        jni::alias_ref<jni::JArrayInt>,
+        jni::alias_ref<jni::JArrayDouble>,
+        jni::alias_ref<jstring>,
+        jni::alias_ref<jstring>,
+        jlong)>("requestMatchedRoutesFromJS");
+
+    auto coordinates = jni::JArrayDouble::newArray(request.coordinates.size());
+    coordinates->setRegion(0, request.coordinates.size(), request.coordinates.data());
+    auto waypointIndices = jni::JArrayInt::newArray(request.waypointIndices.size());
+    waypointIndices->setRegion(0, request.waypointIndices.size(), request.waypointIndices.data());
+    auto radiuses = jni::JArrayDouble::newArray(request.radiuses.size());
+    radiuses->setRegion(0, request.radiuses.size(), request.radiuses.data());
+    method(
+        module_,
+        coordinates,
+        jni::make_jstring(request.profile),
+        waypointIndices,
+        radiuses,
+        optionalString(request.language),
+        optionalString(request.units),
         toCallback({std::move(resolve), nullptr, std::move(reject)}));
   }
 

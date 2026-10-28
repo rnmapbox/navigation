@@ -11,8 +11,10 @@ import NativeNavigation, {
 } from './specs/NativeRNMBXNavigationModule';
 import type { DistanceUnit } from './guidance';
 import {
+  matchedRouteRequestError,
   routeBindings,
   toNativeWaypoint,
+  type MatchedRouteRequestOptions,
   type Route,
   type RouteChangeEvent,
   type RouteRequestOptions,
@@ -80,6 +82,40 @@ export const Navigation = {
       ...options,
       waypoints: options.waypoints.map(toNativeWaypoint),
     });
+  },
+
+  /**
+   * Snaps `options.coordinates` to roads with the Mapbox Map Matching API and resolves with a route along them, for
+   * guiding a path the app defines, such as a tour or a delivery run. The route works with {@link previewRoute} and
+   * {@link startActiveGuidance} like one from {@link requestRoutes}; `alternatives` is always empty. Neither SDK
+   * reroutes a matched route: guidance reports going off route and waits for the user to return to it.
+   *
+   * Rejects without a request if the options break the Map Matching API's limits, and with `code: 'no_single_match'`
+   * if the API can only match the coordinates as several disconnected pieces. On Android this uses
+   * `requestMapMatching`, which the SDK marks `@ExperimentalPreviewMapboxNavigationAPI`, so it may change in minor
+   * releases.
+   */
+  requestMatchedRoutes(
+    options: MatchedRouteRequestOptions
+  ): Promise<RouteResponse> {
+    const error = matchedRouteRequestError(options);
+    if (error) {
+      return Promise.reject(new Error(error));
+    }
+    const last = options.coordinates.length - 1;
+    return routeBindings().requestMatchedRoutes({
+      ...options,
+      waypointIndices: options.waypointIndices ?? [0, last],
+    });
+  },
+
+  /**
+   * Whether guidance requests a new route when the user leaves a route from {@link requestRoutes}. Defaults to `true`.
+   * Matched routes from {@link requestMatchedRoutes} are never rerouted. Android applies it at once; iOS only when the
+   * navigation session is created, so call it before the first request, next to {@link setAccessToken}.
+   */
+  setRerouteEnabled(enabled: boolean): void {
+    NativeNavigation.setRerouteEnabled(enabled);
   },
 
   /**

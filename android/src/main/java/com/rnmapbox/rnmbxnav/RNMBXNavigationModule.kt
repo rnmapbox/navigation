@@ -13,6 +13,7 @@ import com.mapbox.api.directions.v5.models.BannerComponents
 import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.common.MapboxOptions
 import com.mapbox.geojson.Point
+import com.mapbox.navigation.base.ExperimentalPreviewMapboxNavigationAPI
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
 import com.mapbox.navigation.base.formatter.DistanceFormatterOptions
 import com.mapbox.navigation.base.formatter.UnitType
@@ -22,6 +23,11 @@ import com.mapbox.navigation.base.route.RouterFailure
 import com.mapbox.navigation.base.speed.model.SpeedLimitSign
 import com.mapbox.navigation.base.speed.model.SpeedUnit
 import com.mapbox.navigation.base.trip.model.RouteProgress
+import com.mapbox.navigation.core.mapmatching.MapMatchingAPICallback
+import com.mapbox.navigation.core.mapmatching.MapMatchingExtras
+import com.mapbox.navigation.core.mapmatching.MapMatchingFailure
+import com.mapbox.navigation.core.mapmatching.MapMatchingOptions
+import com.mapbox.navigation.core.mapmatching.MapMatchingSuccessfulResult
 import com.mapbox.navigation.core.trip.session.LocationMatcherResult
 
 class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
@@ -145,6 +151,73 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /** Called by the C++ route bindings; see `MatchRequest` in cpp/RNMBXNavigationRoutes.h. */
+  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
+  @DoNotStrip
+  fun requestMatchedRoutesFromJS(
+    coordinates: DoubleArray,
+    profile: String,
+    waypointIndices: IntArray,
+    radiuses: DoubleArray,
+    language: String?,
+    units: String?,
+    callback: Long
+  ) {
+    val options = MapMatchingOptions.Builder()
+      .coordinates((0 until coordinates.size / 2).map { Point.fromLngLat(coordinates[2 * it], coordinates[2 * it + 1]) })
+      .profile(profile)
+      .waypoints(waypointIndices.toList())
+      .radiuses(radiuses.takeIf { it.isNotEmpty() }?.toList())
+      .annotations(
+        listOfNotNull(
+          MapMatchingExtras.ANNOTATION_DISTANCE,
+          MapMatchingExtras.ANNOTATION_DURATION,
+          MapMatchingExtras.ANNOTATION_SPEED,
+          MapMatchingExtras.ANNOTATION_CONGESTION_NUMERIC.takeIf { profile == "driving-traffic" },
+        )
+      )
+      .bannerInstructions(true)
+      .voiceInstructions(true)
+      .roundaboutExits(true)
+      .language(language)
+      .voiceUnits(units)
+      .build()
+
+    UiThreadUtil.runOnUiThread {
+      val navigation = RNMBXNavigationSession.mapboxNavigation(reactApplicationContext)
+      if (navigation == null) {
+        RNMBXNavigationNative.reject(callback, "no_access_token", "Call Navigation.setAccessToken before using navigation")
+        return@runOnUiThread
+      }
+      navigation.requestMapMatching(
+        options,
+        object : MapMatchingAPICallback {
+          override fun success(result: MapMatchingSuccessfulResult) {
+            // Further matches are the other pieces of a trace that didn't match in one piece, not alternatives.
+            val match = result.matches.singleOrNull()
+            if (match == null) {
+              RNMBXNavigationNative.reject(
+                callback,
+                "no_single_match",
+                "The coordinates match only as ${result.matches.size} disconnected pieces"
+              )
+              return
+            }
+            RNMBXNavigationNative.resolveRoutes(callback, arrayOf(RNMBXNavigationRoute(listOf(match.navigationRoute))))
+          }
+
+          override fun failure(failure: MapMatchingFailure) {
+            RNMBXNavigationNative.reject(callback, "route_request_failed", "Map Matching request failed")
+          }
+
+          override fun onCancel() {
+            RNMBXNavigationNative.reject(callback, "route_request_canceled", "Route request was canceled")
+          }
+        }
+      )
+    }
+  }
+
   @DoNotStrip
   fun startActiveGuidanceFromJS(route: RNMBXNavigationRoute, simulate: Boolean, callback: Long) {
     UiThreadUtil.runOnUiThread {
@@ -209,6 +282,10 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
 
   override fun setKeepScreenOn(keepScreenOn: Boolean) {
     UiThreadUtil.runOnUiThread { RNMBXNavigationSession.keepScreenOn = keepScreenOn }
+  }
+
+  override fun setRerouteEnabled(enabled: Boolean) {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.rerouteEnabled = enabled }
   }
 
   override fun isCarPlayConnected(): Boolean = false

@@ -71,6 +71,15 @@ final class RNMBXNavigationSession {
     }
   }
 
+  /// The SDK reads it only when the provider is created.
+  var rerouteEnabled = true {
+    didSet {
+      if provider != nil, rerouteEnabled != oldValue {
+        Logger.log(level: .warn, message: "Navigation.setRerouteEnabled: iOS applies it only before the first request")
+      }
+    }
+  }
+
   func mapboxNavigation() throws -> MapboxNavigation {
     if let provider {
       return provider.mapboxNavigation
@@ -85,6 +94,7 @@ final class RNMBXNavigationSession {
     let provider = MapboxNavigationProvider(
       coreConfig: CoreConfig(
         credentials: NavigationCoreApiConfiguration(accessToken: accessToken),
+        routingConfig: RoutingConfig(rerouteConfig: RerouteConfig(detectsReroute: rerouteEnabled)),
         multilegAdvancing: .manually { _ in await MainActor.run { RNMBXNavigationSession.shared.autoAdvanceLegs } }
       )
     )

@@ -169,6 +169,7 @@ export interface Spec extends TurboModule {
   /** One of "following", "overview", "idle". */
   getCameraState(): string;
   setVoiceMuted(muted: boolean): void;
+  setRerouteEnabled(enabled: boolean): void;
   isVoiceMuted(): boolean;
   /** 0..1 */
   setVoiceVolume(volume: number): void;

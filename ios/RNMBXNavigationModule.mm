@@ -97,6 +97,11 @@
   [_navigation setVoiceMuted:muted];
 }
 
+- (void)setRerouteEnabled:(BOOL)enabled
+{
+  [_navigation setRerouteEnabled:enabled];
+}
+
 - (NSNumber *)isVoiceMuted
 {
   return @([_navigation isVoiceMuted]);

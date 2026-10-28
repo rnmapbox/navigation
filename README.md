@@ -257,6 +257,8 @@ Their `.netrc` / `MAPBOX_DOWNLOADS_TOKEN` setup can go; this package doesn't nee
 | `getSdkVersion()`                            | Version of the native Navigation SDK.                                  |
 | `getDefaultDistanceUnit()`                   | `'metric'` or `'imperial'`, from the device's region and measurement settings. |
 | `requestRoutes(options)`                     | `{ main, alternatives }` routes through `options.waypoints`; also `profile`, `alternatives`, `exclude`, `language`, `units`. |
+| `requestMatchedRoutes(options)`              | `{ main }` route along `options.coordinates` (2 to 100), snapped to roads with Map Matching; also `profile`, `waypointIndices`, `radiuses`, `language`, `units`. Never rerouted. |
+| `setRerouteEnabled(enabled)`                 | Turns rerouting of `requestRoutes` routes off or on. iOS applies it only before the first request. |
 | `previewRoute(route \| null)`                | Shows a route on navigation maps, or removes it.                       |
 | `startActiveGuidance(route, { simulate })`   | Starts guidance along `route`; `simulate` drives it with simulated locations. |
 | `stopNavigation()`                           | Stops guidance and clears the maps.                                    |
@@ -463,7 +465,7 @@ adb shell am broadcast -a com.rnmapbox.navigation.DEBUG_CAR_PREVIEW --ez show tr
 
 ## Example app
 
-`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, a "Route lifecycle" screen with `Route` checks and live counts, a "NavigationView" screen with simulated guidance, and a "RNNavigationView" screen with the React Native UI, simulated or on the device's location, and a log of arrival, off-route, reroute and voice events, and a "Markers" screen with `@rnmapbox/maps` markers, a `ShapeSource` of points of interest, custom route line colors and React Native map controls during simulated guidance.
+`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, a "Route lifecycle" screen with `Route` checks and live counts, a "NavigationView" screen with simulated guidance, and a "RNNavigationView" screen with the React Native UI, simulated or on the device's location, and a log of arrival, off-route, reroute and voice events, a "Markers" screen with `@rnmapbox/maps` markers, a `ShapeSource` of points of interest, custom route line colors and React Native map controls during simulated guidance, and a "Matched route" screen that matches a fixed tour along the Embarcadero and simulates guidance along it.
 
 It reads your Mapbox access token from `example/accesstoken` (gitignored), the same way the `@rnmapbox/maps` example does:
 
