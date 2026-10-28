@@ -12,10 +12,15 @@ import androidx.car.app.SurfaceContainer
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.Template
+import androidx.car.app.navigation.NavigationManager
+import androidx.car.app.navigation.NavigationManagerCallback
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.validation.HostValidator
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import com.mapbox.common.location.Location
+import com.mapbox.navigation.base.route.NavigationRoute
+import com.mapbox.navigation.base.trip.model.RouteProgress
 
 /**
  * Android Auto entry point, declared by the Expo config plugin's `androidAuto` option: shows the navigation map,
@@ -35,7 +40,66 @@ class RNMBXNavigationCarAppService : CarAppService() {
 }
 
 class RNMBXNavigationCarSession : Session() {
+  init {
+    lifecycle.addObserver(object : DefaultLifecycleObserver {
+      private lateinit var navigationGuidance: RNMBXNavigationCarGuidance
+
+      override fun onCreate(owner: LifecycleOwner) {
+        navigationGuidance = RNMBXNavigationCarGuidance(carContext.getCarService(NavigationManager::class.java))
+      }
+
+      override fun onDestroy(owner: LifecycleOwner) {
+        navigationGuidance.close()
+      }
+    })
+  }
+
   override fun onCreateScreen(intent: Intent): Screen = RNMBXNavigationCarScreen(carContext)
+}
+
+/** Tells the car host when the shared navigation session guides, and lets it stop guidance. */
+private class RNMBXNavigationCarGuidance(
+  private val navigationManager: NavigationManager
+) : RNMBXNavigationSession.Listener, NavigationManagerCallback {
+  private var navigating = false
+
+  init {
+    // The host requires the callback before navigationStarted.
+    navigationManager.setNavigationManagerCallback(this)
+    RNMBXNavigationSession.addListener(this)
+  }
+
+  fun close() {
+    RNMBXNavigationSession.removeListener(this)
+    RNMBXNavigationSession.autoDrive = false
+    setNavigating(false)
+    navigationManager.clearNavigationManagerCallback()
+  }
+
+  private fun setNavigating(navigating: Boolean) {
+    if (navigating == this.navigating) return
+    this.navigating = navigating
+    if (navigating) navigationManager.navigationStarted() else navigationManager.navigationEnded()
+  }
+
+  override fun onRoutes(routes: List<NavigationRoute>, preview: Boolean) {
+    if (routes.isNotEmpty() && !preview) setNavigating(true)
+  }
+
+  override fun onStopped() = setNavigating(false)
+
+  override fun onStopNavigation() {
+    navigating = false
+    RNMBXNavigationSession.stopNavigation()
+  }
+
+  override fun onAutoDriveEnabled() {
+    RNMBXNavigationSession.autoDrive = true
+  }
+
+  override fun onLocation(location: Location, keyPoints: List<Location>) = Unit
+  override fun onRouteProgress(progress: RouteProgress) = Unit
+  override fun onCameraState(state: RNMBXNavigationCameraState) = Unit
 }
 
 class RNMBXNavigationCarScreen(carContext: CarContext) : Screen(carContext) {
@@ -67,6 +131,7 @@ class RNMBXNavigationCarScreen(carContext: CarContext) : Screen(carContext) {
       }
 
       override fun onDestroy(owner: LifecycleOwner) {
+        carContext.getCarService(AppManager::class.java).setSurfaceCallback(null)
         carMapSurface.surfaceDestroyed()
       }
     })
