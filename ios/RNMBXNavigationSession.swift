@@ -25,8 +25,17 @@ final class RNMBXNavigationSession {
   let routeChanges = PassthroughSubject<(NavigationRoutes, String), Never>()
 
   @Published var voiceMuted = false {
-    didSet { applyVoiceMuted() }
+    didSet { applyVoiceSettings() }
   }
+  /// `nil` leaves the SDK's default, the system volume.
+  var voiceVolume: Float? {
+    didSet { applyVoiceSettings() }
+  }
+  var autoAdvanceLegs = true
+  var simulationSpeed = 1.0 {
+    didSet { simulator?.speedMultiplier = simulationSpeed }
+  }
+  private var simulator: RNMBXNavigationSimulator?
 
   @Published private(set) var provider: MapboxNavigationProvider?
   private var subscriptions = Set<AnyCancellable>()
@@ -53,7 +62,10 @@ final class RNMBXNavigationSession {
       )
     }
     let provider = MapboxNavigationProvider(
-      coreConfig: CoreConfig(credentials: NavigationCoreApiConfiguration(accessToken: accessToken))
+      coreConfig: CoreConfig(
+        credentials: NavigationCoreApiConfiguration(accessToken: accessToken),
+        multilegAdvancing: .manually { _ in await MainActor.run { RNMBXNavigationSession.shared.autoAdvanceLegs } }
+      )
     )
     self.provider = provider
     let navigation = provider.mapboxNavigation.navigation()
@@ -109,8 +121,8 @@ final class RNMBXNavigationSession {
   }
 
   /// Applying the config replaces the location client and the speech synthesizer on a later main actor turn.
-  func setLocationSource(_ source: LocationSource, force: Bool = false) {
-    guard let provider, force || provider.coreConfig.locationSource != source else { return }
+  func setLocationSource(_ source: LocationSource) {
+    guard let provider, provider.coreConfig.locationSource != source else { return }
     var config = provider.coreConfig
     config.locationSource = source
     provider.apply(coreConfig: config)
@@ -119,31 +131,46 @@ final class RNMBXNavigationSession {
   /// Nil if guidance stopped or restarted meanwhile.
   func prepareActiveGuidance(_ route: RNMBXNavigationRoute, simulate: Bool) async throws -> MapboxNavigation? {
     let navigation = try mapboxNavigation()
-    // Without the origin, the new simulation starts from progress matched against the previous simulation's location.
-    let origin = route.routes.mainRoute.route.shape?.coordinates.first.map {
-      CLLocation(latitude: $0.latitude, longitude: $0.longitude)
-    }
-    setLocationSource(simulate ? .simulation(initialLocation: origin) : .live, force: simulate)
+    simulator?.stop()
+    simulator = simulate
+      ? RNMBXNavigationSimulator(
+        routes: route.routes,
+        speedMultiplier: simulationSpeed,
+        routeProgress: navigation.navigation().routeProgress.map { $0?.routeProgress }.eraseToAnyPublisher()
+      )
+      : nil
+    setLocationSource(simulator.map { .custom($0.locationClient) } ?? .live)
     guidanceRoute = route
     // `apply(coreConfig:)` swaps the location client and the speech synthesizer two main actor turns later; guidance
     // started before that is matched against the previous client's location.
     await Task.yield()
     await Task.yield()
-    applyVoiceMuted()
+    applyVoiceSettings()
     return guidanceRoute === route ? navigation : nil
   }
 
   /// Creates the SDK speech player on first use, which then speaks for any guidance.
-  private func applyVoiceMuted() {
+  private func applyVoiceSettings() {
     guard let provider else { return }
     let synthesizer = provider.routeVoiceController.speechSynthesizer
     if synthesizer.muted != voiceMuted {
       synthesizer.muted = voiceMuted
     }
+    let volume: VolumeMode = voiceVolume.map { .override($0) } ?? .system
+    if synthesizer.volume != volume {
+      synthesizer.volume = volume
+    }
+  }
+
+  func advanceToNextLeg() {
+    guard guidanceRoute != nil, let provider, let routeProgress, !routeProgress.isFinalLeg else { return }
+    provider.mapboxNavigation.navigation().switchLeg(newLegIndex: routeProgress.legIndex + 1)
   }
 
   func stop() {
     provider?.mapboxNavigation.tripSession().setToIdle()
+    simulator?.stop()
+    simulator = nil
     guidanceRoute = nil
     previewRoutes = nil
     cameraState = .idle

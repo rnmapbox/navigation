@@ -9,6 +9,8 @@ import Navigation, {
 } from '@rnmapbox/navigation';
 
 const APPEARANCES: RNNavigationViewAppearance[] = ['auto', 'day', 'night'];
+const SIMULATION_SPEEDS = [1, 2, 4, 8];
+const VOICE_VOLUMES = [1, 0.5, 0.2];
 
 // Through the city to the Bay Bridge, which has lanes and posted speed limits.
 export const TREASURE_ISLAND: Position = [-122.37066, 37.81812];
@@ -30,6 +32,12 @@ export default function RNNavigationViewScreen({
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>();
   const [appearance, setAppearance] =
     useState<RNNavigationViewAppearance>('auto');
+  const [autoAdvanceLegs, setAutoAdvanceLegs] = useState(true);
+
+  useEffect(() => {
+    Navigation.setAutoAdvanceLegs(autoAdvanceLegs);
+    return () => Navigation.setAutoAdvanceLegs(true);
+  }, [autoAdvanceLegs]);
 
   if (!waypoints) {
     return (
@@ -68,6 +76,11 @@ export default function RNNavigationViewScreen({
           testID="rn-screen-appearance"
         />
         <Button
+          label={`Next stop: ${autoAdvanceLegs ? 'on arrival' : 'manual'}`}
+          onPress={() => setAutoAdvanceLegs(!autoAdvanceLegs)}
+          testID="rn-screen-auto-advance"
+        />
+        <Button
           label="Ferry Building"
           onPress={() =>
             setWaypoints([
@@ -86,6 +99,17 @@ export default function RNNavigationViewScreen({
             ])
           }
           testID="rn-screen-treasure-island"
+        />
+        <Button
+          label="Ferry Building, then Treasure Island"
+          onPress={() =>
+            setWaypoints([
+              origin,
+              { coordinate: destination, name: 'Ferry Building' },
+              { coordinate: TREASURE_ISLAND, name: 'Treasure Island' },
+            ])
+          }
+          testID="rn-screen-multi-stop"
         />
         <Button
           label="Civic Center to Oakland"
@@ -115,7 +139,71 @@ export default function RNNavigationViewScreen({
         onError={(error) => console.warn('RNNavigationView', error)}
       />
       <EventLog />
+      <SessionControls simulate={simulate} />
     </View>
+  );
+}
+
+function SessionControls({ simulate }: { simulate: boolean }) {
+  const [speed, setSpeed] = useState(1);
+  const [volume, setVolume] = useState(1);
+
+  useEffect(() => {
+    if (simulate) Navigation.setSimulationSpeed(speed);
+  }, [simulate, speed]);
+  useEffect(() => Navigation.setVoiceVolume(volume), [volume]);
+  useEffect(
+    () => () => {
+      Navigation.setSimulationSpeed(1);
+      Navigation.setVoiceVolume(1);
+    },
+    []
+  );
+
+  const next = <T,>(values: T[], value: T) =>
+    values[(values.indexOf(value) + 1) % values.length]!;
+
+  return (
+    <View style={styles.controls}>
+      <Chip
+        label="Next stop"
+        onPress={() => Navigation.advanceToNextLeg()}
+        testID="rn-screen-next-leg"
+      />
+      {simulate && (
+        <Chip
+          label={`${speed}×`}
+          onPress={() => setSpeed(next(SIMULATION_SPEEDS, speed))}
+          testID="rn-screen-speed"
+        />
+      )}
+      <Chip
+        label={`Vol ${Math.round(volume * 100)}%`}
+        onPress={() => setVolume(next(VOICE_VOLUMES, volume))}
+        testID="rn-screen-volume"
+      />
+    </View>
+  );
+}
+
+function Chip({
+  label,
+  onPress,
+  testID,
+}: {
+  label: string;
+  onPress: () => void;
+  testID: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      testID={testID}
+      style={styles.chip}
+    >
+      <Text style={styles.chipText}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -204,6 +292,15 @@ const styles = StyleSheet.create({
   },
   buttonText: { fontSize: 16, fontWeight: '600', color: '#111827' },
   log: { position: 'absolute', left: 12, right: 12, bottom: 150, gap: 4 },
+  controls: { position: 'absolute', right: 12, top: '40%', gap: 8 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(17, 24, 39, 0.75)',
+    alignItems: 'center',
+  },
+  chipText: { color: 'white', fontSize: 13, fontWeight: '600' },
   logEntry: {
     alignSelf: 'flex-start',
     color: 'white',

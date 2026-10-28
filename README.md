@@ -217,6 +217,9 @@ export function NavigationScreen() {
 | `previewRoute(route \| null)`                | Shows a route on navigation maps, or removes it.                       |
 | `startActiveGuidance(route, { simulate })`   | Starts guidance along `route`; `simulate` drives it with simulated locations. |
 | `stopNavigation()`                           | Stops guidance and clears the maps.                                    |
+| `advanceToNextLeg()`                         | Guides to the next waypoint, e.g. to skip a stop.                      |
+| `setAutoAdvanceLegs(enabled)`                | Whether guidance moves on by itself after arriving at a waypoint (default `true`). |
+| `setSimulationSpeed(multiplier)`             | Speed of simulated guidance, e.g. `4` for four times faster.           |
 | `getRouteStats()`                            | Counts of live, released and garbage-collected routes.                 |
 | `setCameraState(state)` / `getCameraState()` | `'following'`, `'overview'` or `'idle'`.                               |
 | `addCameraStateListener(listener)`           | Camera state changes.                                                  |
@@ -227,6 +230,7 @@ export function NavigationScreen() {
 | `addRouteChangeListener(listener)`           | New `Route` after a reroute or a switch to an alternative.             |
 | `addVoiceInstructionListener(listener)`      | Voice instruction text and SSML.                                       |
 | `setVoiceMuted(muted)` / `isVoiceMuted()`    | Mutes the SDK's voice instructions.                                    |
+| `setVoiceVolume(volume)`                     | Volume of the voice instructions, 0 to 1.                              |
 | `NAVIGATION_MAP_VIEW_IMPL`                   | `mapViewImpl` value for navigation maps.                               |
 | `<NavigationViewport padding />`             | Per-map camera padding.                                                |
 | `<NavigationView route \| waypoints />`      | Full-screen navigation UI; see [NavigationView](#navigationview).      |
