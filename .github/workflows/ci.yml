@@ -205,6 +205,12 @@ jobs:
           JAVA_OPTS: "-XX:MaxHeapSize=6g"
         run: ./gradlew assembleDebug --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
 
+      - name: Build expo-example for Android (release, R8)
+        working-directory: expo-example/android
+        env:
+          JAVA_OPTS: "-XX:MaxHeapSize=6g"
+        run: ./gradlew assembleRelease --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
+
   build-expo-ios:
     runs-on: macos-latest
 
