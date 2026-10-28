@@ -121,7 +121,8 @@ export const Navigation = {
   /**
    * Whether guidance moves on to the next leg by itself once it arrives at a waypoint, which is the default. When off,
    * guidance stays at the waypoint, simulated guidance included, until {@link advanceToNextLeg}; arrivals are still
-   * reported to {@link addArriveListener}.
+   * reported to {@link addArriveListener}. Turning it on while guidance waits at a waypoint doesn't move on; call
+   * {@link advanceToNextLeg}.
    */
   setAutoAdvanceLegs(enabled: boolean): void {
     NativeNavigation.setAutoAdvanceLegs(enabled);
@@ -129,7 +130,8 @@ export const Navigation = {
 
   /**
    * Speed of simulated guidance relative to the route's expected speeds, e.g. `4` drives four times faster; the
-   * default is `1`. Applies to the running and later simulations. Throws unless `multiplier` is positive.
+   * default is `1`. Applies to the running and later simulations. Simulated locations keep reporting the route's
+   * speed, not multiplied. Throws unless `multiplier` is positive.
    */
   setSimulationSpeed(multiplier: number): void {
     if (!(multiplier > 0)) {

@@ -10,7 +10,7 @@ import Turf
 @MainActor
 final class RNMBXNavigationSimulator {
   var speedMultiplier: Double {
-    didSet { if timer != nil { start() } }
+    didSet { if timer != nil, speedMultiplier != oldValue { start() } }
   }
 
   private let locations = PassthroughSubject<CLLocation, Never>()
@@ -29,12 +29,20 @@ final class RNMBXNavigationSimulator {
   private var synced = false
   private var subscription: AnyCancellable?
 
-  init(routes: NavigationRoutes, speedMultiplier: Double, routeProgress: AnyPublisher<RouteProgress?, Never>) {
+  /// Starts at the point of the route closest to `start`, or at its origin.
+  init(
+    routes: NavigationRoutes,
+    from start: CLLocationCoordinate2D?,
+    speedMultiplier: Double,
+    routeProgress: AnyPublisher<RouteProgress?, Never>
+  ) {
     route = routes.mainRoute.route
     routeId = routes.mainRoute.routeId
     self.speedMultiplier = speedMultiplier
     legEnds = Self.legEnds(route)
-    coordinate = route.shape?.coordinates.first
+    let closest = start.flatMap { route.shape?.closestCoordinate(to: $0) }
+    distance = closest?.distance ?? 0
+    coordinate = closest?.coordinate ?? route.shape?.coordinates.first
     subscription = routeProgress
       .compactMap { $0 }
       .sink { [weak self] in self?.update($0) }
@@ -49,6 +57,11 @@ final class RNMBXNavigationSimulator {
       startUpdatingHeading: {},
       stopUpdatingHeading: {}
     )
+  }
+
+  /// At the end of `legIndex`, unless it's the last leg.
+  func isWaiting(onLeg legIndex: Int) -> Bool {
+    legIndex < legEnds.count - 1 && distance >= legEnds[legIndex]
   }
 
   func stop() {
@@ -99,14 +112,14 @@ final class RNMBXNavigationSimulator {
       course = current.direction(to: ahead).wrap(min: 0, max: 360)
     }
     coordinate = current
-    // Timestamps are real time, so the speed matches how far each location moves.
+    // Like Android's replay, reports the route's speed rather than how fast the simulation moves.
     locations.send(CLLocation(
       coordinate: current,
       altitude: 0,
       horizontalAccuracy: 5,
       verticalAccuracy: 5,
       course: course,
-      speed: moving ? clampedSpeed * speedMultiplier : 0,
+      speed: moving ? clampedSpeed : 0,
       timestamp: Date()
     ))
   }
