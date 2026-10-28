@@ -5,6 +5,7 @@
 #import <react/renderer/components/rnmapbox_navigation_specs/RCTComponentViewHelpers.h>
 
 #import <React/RCTConversions.h>
+#import <react/utils/FollyConvert.h>
 
 #import "rnmapbox_navigation-Swift.h"
 
@@ -54,6 +55,8 @@ using namespace facebook::react;
                          casingColor:RCTUIColorFromSharedColor(newProps.routeLineCasingColor)
                     alternativeColor:RCTUIColorFromSharedColor(newProps.routeLineAlternativeColor)
                        traveledColor:RCTUIColorFromSharedColor(newProps.routeLineTraveledColor)];
+  id puck = newProps.puck.isNull() ? nil : convertFollyDynamicToId(newProps.puck);
+  _view.puck = [puck isKindOfClass:[NSDictionary class]] ? puck : nil;
   [super updateProps:props oldProps:oldProps];
 }
 

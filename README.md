@@ -281,7 +281,7 @@ Their `.netrc` / `MAPBOX_DOWNLOADS_TOKEN` setup can go; this package doesn't nee
 | `setVoiceVolume(volume)`                     | Volume of the voice instructions, 0 to 1.                              |
 | `setKeepScreenOn(keepScreenOn)`              | Whether guidance keeps the screen on; on by default.                   |
 | `NAVIGATION_MAP_VIEW_IMPL`                   | `mapViewImpl` value for navigation maps.                               |
-| `<NavigationViewport padding />`             | Per-map camera padding.                                                |
+| `<NavigationViewport />`                     | Per-map camera padding, route line colors and puck.                    |
 | `<NavigationView route \| waypoints />`      | Full-screen navigation UI; see [NavigationView](#navigationview).      |
 | `<RNNavigationView route \| waypoints />`    | The same UI in React Native; see [RNNavigationView](#rnnavigationview). |
 
@@ -332,6 +332,22 @@ There's one navigation session per app. Every navigation map shows its route, pu
 ```
 
 The colors can change during guidance. On iOS the SDK then redraws the route, and the traveled part shows in the route color until the next location update.
+
+`puck` changes the location puck on that map. It takes `LocationPuck`'s `visible`, `bearingImage`, `scale` and `model` props, and the puck always rotates with the course:
+
+```tsx
+<Images images={{ 'puck-arrow': require('./puck-arrow.png') }} />
+<NavigationViewport puck={{ bearingImage: 'puck-arrow', scale: 1 }} />
+<NavigationViewport puck={{ model: { uri: require('./car.glb'), scale: [10, 10, 10] } }} />
+<NavigationViewport puck={{ visible: false }} />
+```
+
+- `bearingImage` is the name of an image in an `@rnmapbox/maps` `Images` on the same map. Until the image is there, the SDK's puck shows.
+- `scale` sizes the `bearingImage` puck: a number or a zoom expression.
+- `model` shows a glTF/glb model as a 3D puck and takes precedence over `bearingImage`. Bundling a `.glb` with `require` needs `glb` in Metro's `assetExts`.
+- Without `bearingImage` and `model` the SDK's puck shows: 3D on iOS, 2D on Android.
+
+The puck can change during guidance.
 
 ### Camera
 
@@ -518,7 +534,7 @@ npx expo run:android
 - Android `<NavigationView>` has no end-of-route or feedback UI, no night colors for its UI (only the map switches), no road name label, and doesn't show reroutes as such.
 - `<RNNavigationView>` draws road shields from the Directions API's shield images, not the Mapbox designed shields the native banners use.
 - The Expo config plugin is only tested with Expo SDK 58.
-- `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.
+- `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider. Use `<NavigationViewport puck>` instead.
 - One navigation session for all navigation maps. Per-map routes or cameras aren't supported.
 - Route progress events already on their way to JS still arrive after `stopNavigation`. Ignore them if you need to.
 - Not tested yet: live (non-simulated) guidance on a device, release builds, several navigation maps at once, and unmounting a map during guidance.

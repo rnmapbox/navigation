@@ -1,4 +1,6 @@
-import type { ColorValue } from 'react-native';
+import type { ComponentProps } from 'react';
+import { Image, type ColorValue } from 'react-native';
+import type { LocationPuck } from '@rnmapbox/maps';
 
 import NativeNavigationViewport from './specs/RNMBXNavigationViewportNativeComponent';
 
@@ -31,6 +33,24 @@ export type RouteLineStyle = {
 };
 
 /**
+ * Puck the Navigation SDK draws on a navigation map. The props are the same as `@rnmapbox/maps` `LocationPuck`'s,
+ * which doesn't work on navigation maps. The puck always rotates with the course.
+ *
+ * - `visible`: `false` hides the puck. Defaults to `true`.
+ * - `bearingImage`: a 2D puck with this image, by its name in an `@rnmapbox/maps` `Images` on the same map.
+ * - `scale`: size of the `bearingImage` puck, a number or a zoom expression.
+ * - `model`: a 3D puck with this glTF/glb model. Takes precedence over `bearingImage`.
+ *
+ * Without `bearingImage` and `model` the SDK's puck shows: 3D on iOS, 2D on Android.
+ *
+ * @group Components
+ */
+export type NavigationPuck = Pick<
+  ComponentProps<typeof LocationPuck>,
+  'visible' | 'bearingImage' | 'scale' | 'model'
+>;
+
+/**
  * Props of {@link NavigationViewport}.
  *
  * @group Components
@@ -43,6 +63,8 @@ export type NavigationViewportProps = {
   padding?: ViewportPadding;
   /** Colors of the route line and the alternative routes on this map. */
   routeLineStyle?: RouteLineStyle;
+  /** Puck on this map. Changes apply during guidance too. */
+  puck?: NavigationPuck;
 };
 
 /**
@@ -56,6 +78,7 @@ export type NavigationViewportProps = {
 export function NavigationViewport({
   padding,
   routeLineStyle,
+  puck,
 }: NavigationViewportProps) {
   return (
     <NativeNavigationViewport
@@ -69,6 +92,27 @@ export function NavigationViewport({
       routeLineCasingColor={routeLineStyle?.casingColor}
       routeLineAlternativeColor={routeLineStyle?.alternativeColor}
       routeLineTraveledColor={routeLineStyle?.traveledColor}
+      puck={puck && puckToNative(puck)}
     />
   );
+}
+
+function puckToNative({ model, ...rest }: NavigationPuck) {
+  return model
+    ? { ...rest, model: { ...model, uri: modelUri(model.uri) } }
+    : rest;
+}
+
+function modelUri(uri: string | number): string {
+  if (typeof uri === 'string') {
+    return uri;
+  }
+  const asset = Image.resolveAssetSource(uri);
+  if (!asset?.uri) {
+    throw new Error(
+      `NavigationViewport: could not resolve puck model asset: ${uri}`
+    );
+  }
+  // Metro's query string isn't part of the asset's path.
+  return asset.uri.split('?')[0]!;
 }

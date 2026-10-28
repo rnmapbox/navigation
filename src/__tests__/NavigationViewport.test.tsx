@@ -1,3 +1,5 @@
+import { Image } from 'react-native';
+
 import { NavigationViewport } from '../NavigationViewport';
 
 jest.mock('../specs/RNMBXNavigationViewportNativeComponent', () => ({
@@ -36,5 +38,30 @@ describe('NavigationViewport', () => {
       routeLineAlternativeColor: undefined,
       routeLineTraveledColor: 'transparent',
     });
+  });
+
+  it('passes the puck through, resolving a required model', () => {
+    jest.spyOn(Image, 'resolveAssetSource').mockReturnValue({
+      uri: 'http://localhost:8081/assets/car.glb?platform=ios&hash=1',
+      width: 0,
+      height: 0,
+      scale: 1,
+    });
+    const element = NavigationViewport({
+      puck: {
+        bearingImage: 'arrow',
+        scale: 1.5,
+        model: { uri: 1, scale: [2, 2, 2] },
+      },
+    });
+    expect(element.props.puck).toEqual({
+      bearingImage: 'arrow',
+      scale: 1.5,
+      model: { uri: 'http://localhost:8081/assets/car.glb', scale: [2, 2, 2] },
+    });
+  });
+
+  it('sends no puck without a puck prop', () => {
+    expect(NavigationViewport({}).props.puck).toBeUndefined();
   });
 });

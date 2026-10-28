@@ -119,6 +119,51 @@ final class RNMBXNavigationMapView: NavigationMapView {
     }
   }
 
+  /// Set by `<NavigationViewport puck>`; nil shows the SDK's puck.
+  var customPuck: NSDictionary? {
+    didSet {
+      guard customPuck != oldValue else { return }
+      applyPuck()
+    }
+  }
+
+  var hasLocation = false {
+    didSet { applyPuck() }
+  }
+
+  private var puckImagePending = false
+
+  /// `<Images>` can add the puck's image to the style after the puck is set.
+  func applyPendingPuckImage() {
+    if puckImagePending {
+      applyPuck()
+    }
+  }
+
+  private func applyPuck() {
+    let puck = RNMBXPuck(customPuck)
+    puckImagePending = false
+    guard hasLocation, puck.visible else {
+      puckType = nil
+      return
+    }
+    if let model = puck.model {
+      puckType = .puck3D(model)
+      return
+    }
+    if let name = puck.bearingImage {
+      if let image = mapView.mapboxMap.image(withId: name) {
+        var configuration = Puck2DConfiguration.navigationDefault
+        configuration.bearingImage = image
+        configuration.scale = puck.scale
+        puckType = .puck2D(configuration)
+        return
+      }
+      puckImagePending = true
+    }
+    puckType = .puck3D(.navigationDefault)
+  }
+
   /// The SDK adds the safe area to `viewportPadding`; `<NavigationViewport>` padding already accounts for it.
   override var safeAreaInsets: UIEdgeInsets {
     customViewportPadding == nil ? super.safeAreaInsets : .zero
@@ -136,6 +181,41 @@ struct RNMBXRouteLineStyle: Equatable {
   var traveledColor: UIColor?
 }
 
+/// `NavigationPuck` from `<NavigationViewport puck>`.
+struct RNMBXPuck {
+  var visible = true
+  var bearingImage: String?
+  var scale: Value<Double>?
+  var model: Puck3DConfiguration?
+
+  init(_ puck: NSDictionary?) {
+    guard let puck else { return }
+    visible = puck["visible"] as? Bool ?? true
+    bearingImage = puck["bearingImage"] as? String
+    scale = Self.value(puck["scale"])
+    if let model = puck["model"] as? NSDictionary {
+      if let uri = model["uri"] as? String, let url = URL(string: uri) {
+        var configuration = Puck3DConfiguration.navigationDefault
+        configuration.model = Model(id: url.absoluteString, uri: url)
+        configuration.modelScale = Self.value(model["scale"])
+        configuration.modelRotation = Self.value(model["rotation"])
+        configuration.modelOpacity = Self.value(model["opacity"]) ?? .constant(1)
+        self.model = configuration
+      } else {
+        Logger.error("NavigationViewport puck.model.uri is not a valid URL: \(String(describing: model["uri"]))")
+      }
+    }
+  }
+
+  /// A number, an array of numbers or an expression.
+  private static func value<T: Codable>(_ value: Any?) -> Value<T>? {
+    guard let value,
+          let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
+    else { return nil }
+    return try? JSONDecoder().decode(Value<T>.self, from: data)
+  }
+}
+
 /// Mirrors the shared session (preview routes, camera state, stop) onto one `NavigationMapView`.
 /// Active-guidance routes and the puck come straight from the publishers passed to `NavigationMapView`.
 @MainActor
@@ -143,7 +223,7 @@ private final class RNMBXNavigationMapBinding: NSObject {
   private var subscriptions = Set<AnyCancellable>()
   private let session: RNMBXNavigationSession
 
-  init(_ navigationMapView: NavigationMapView, session: RNMBXNavigationSession) {
+  init(_ navigationMapView: RNMBXNavigationMapView, session: RNMBXNavigationSession) {
     self.session = session
     super.init()
 
@@ -173,8 +253,12 @@ private final class RNMBXNavigationMapBinding: NSObject {
       .map { $0 != nil }
       .removeDuplicates()
       .sink { [weak navigationMapView] hasLocation in
-        navigationMapView?.puckType = hasLocation ? .puck3D(.navigationDefault) : nil
+        navigationMapView?.hasLocation = hasLocation
       }
+      .store(in: &subscriptions)
+
+    session.$location
+      .sink { [weak navigationMapView] _ in navigationMapView?.applyPendingPuckImage() }
       .store(in: &subscriptions)
 
     session.stopped

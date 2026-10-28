@@ -1,13 +1,18 @@
 package com.rnmapbox.rnmbxnav
 
+import android.graphics.Bitmap
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.mapbox.common.location.Location
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.ImageHolder
 import com.mapbox.maps.MapView
 import com.mapbox.maps.Style
+import com.mapbox.maps.plugin.LocationPuck
+import com.mapbox.maps.plugin.LocationPuck2D
+import com.mapbox.maps.plugin.LocationPuck3D
 import com.mapbox.maps.plugin.PuckBearing
 import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.plugin.animation.camera
@@ -34,12 +39,15 @@ import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineView
 import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineApiOptions
 import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineViewOptions
 import com.mapbox.navigation.ui.maps.route.line.model.RouteLineColorResources
+import com.rnmapbox.rnmbx.components.images.Subscription
 import com.rnmapbox.rnmbx.components.mapview.Cancelable
 import com.rnmapbox.rnmbx.components.mapview.OnCameraWillMoveMapListener
 import com.rnmapbox.rnmbx.components.mapview.RNMBXMapView
 import com.rnmapbox.rnmbx.components.mapview.RNMBXMapViewFactory
+import com.rnmapbox.rnmbx.v11compat.image.toImageHolder
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
+import org.json.JSONArray
 
 /**
  * Lets `<MapView mapViewImpl="rnmbxnav">` from `@rnmapbox/maps` render navigation: the factory creates the
@@ -116,7 +124,7 @@ class RNMBXNavigationMapBinding(
   init {
     mapView.location.setLocationProvider(locationProvider)
     mapView.location.updateSettings {
-      locationPuck = createDefault2DPuck(withBearing = true)
+      locationPuck = defaultPuck
       puckBearing = PuckBearing.COURSE
       puckBearingEnabled = true
       enabled = false
@@ -159,6 +167,43 @@ class RNMBXNavigationMapBinding(
   private fun applyRouteLineStyle(style: Style) {
     routeLineView.updateDynamicOptions(style) {
       routeLineColorResources(routeLineStyle.colorResources())
+    }
+  }
+
+  private var puck: Map<String, Any?>? = null
+  private var puckImage: ImageHolder? = null
+  private var puckImageSubscription: Subscription? = null
+
+  /** From `<NavigationViewport puck>`; null shows the SDK's puck. */
+  fun setPuck(puck: Map<String, Any?>?) {
+    if (puck == this.puck) return
+    val imageName = puck?.get("bearingImage") as? String
+    if (imageName != this.puck?.get("bearingImage")) subscribePuckImage(imageName)
+    this.puck = puck
+    applyPuck()
+  }
+
+  /** `<Images>` can add the image to the style after the puck is set, and adds it again after style reloads. */
+  private fun subscribePuckImage(name: String?) {
+    puckImageSubscription?.cancel()
+    puckImageSubscription = null
+    puckImage = name?.let { mapView.mapboxMap.style?.getStyleImage(it)?.toImageHolder() }
+    if (name == null) return
+    puckImageSubscription = parent?.imageManager?.subscribe(name) { _, image ->
+      puckImage = image.toImageHolder()
+      applyPuck()
+    }
+  }
+
+  private fun applyPuck() {
+    val puck = puck
+    val model = puck?.get("model") as? Map<*, *>
+    val image = puckImage
+    mapView.location.locationPuck = when {
+      puck?.get("visible") == false -> hiddenPuck
+      model != null -> puck3D(model) ?: defaultPuck
+      image != null -> LocationPuck2D(bearingImage = image, scaleExpression = puck?.get("scale")?.let(::expressionJson))
+      else -> defaultPuck
     }
   }
 
@@ -248,6 +293,12 @@ class RNMBXNavigationMapBinding(
 
   private companion object {
     val NO_PADDING = EdgeInsets(0.0, 0.0, 0.0, 0.0)
+    val defaultPuck = createDefault2DPuck(withBearing = true)
+
+    // Disabling the location component would also stop the puck position updates that shrink the traveled route line.
+    val hiddenPuck = ImageHolder.from(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)).let {
+      LocationPuck2D(topImage = it, bearingImage = it, shadowImage = it)
+    }
     const val ROUTE_CLICK_PADDING = 30f
   }
 }
@@ -275,3 +326,26 @@ data class RNMBXRouteLineStyle(
     traveledColor?.let { routeLineTraveledColor(it) }
   }.build()
 }
+
+private fun puck3D(model: Map<*, *>): LocationPuck? {
+  val uri = model["uri"] as? String ?: return null
+  val scale = model["scale"]
+  val rotation = model["rotation"]
+  val opacity = model["opacity"]
+  return LocationPuck3D(
+    modelUri = uri,
+    modelScale = floats(scale) ?: listOf(1f, 1f, 1f),
+    modelScaleExpression = scale?.takeIf { floats(it) == null }?.let(::expressionJson),
+    modelRotation = floats(rotation) ?: listOf(0f, 0f, 0f),
+    modelRotationExpression = rotation?.takeIf { floats(it) == null }?.let(::expressionJson),
+    modelOpacity = (opacity as? Number)?.toFloat() ?: 1f,
+    modelOpacityExpression = opacity?.takeIf { it !is Number }?.let(::expressionJson)
+  )
+}
+
+private fun floats(value: Any?): List<Float>? =
+  (value as? List<*>)?.map { (it as? Number)?.toFloat() ?: return null }
+
+/** A number or an expression, as the JSON the location component expects. */
+private fun expressionJson(value: Any): String =
+  if (value is List<*>) JSONArray(value).toString() else value.toString()
