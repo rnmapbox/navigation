@@ -108,7 +108,7 @@ function applyPodfileModifications(podfile, { RNMapboxNavigationVersion }) {
   src = addGeneratedBlock(src, {
     tag: '@rnmapbox/navigation-post_install',
     lines: [
-      // With explicit Swift modules (Xcode 26 and React Native 0.88+), rnmapbox-maps only finds the binary
+      // With explicit Swift modules (Xcode 26 and React Native 0.87+), rnmapbox-maps only finds the binary
       // frameworks of the Navigation SDK package (MapboxCommon, MapboxCoreMaps, Turf) on a framework search path.
       "    installer.pods_project.targets.select { |t| t.name == 'rnmapbox-maps' }.each do |target|",
       '      target.build_configurations.each do |config|',

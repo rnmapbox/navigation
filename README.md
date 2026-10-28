@@ -58,7 +58,7 @@ Add both config plugins to `app.json`, with `RNMapboxMapsVersion` matching the M
 
 Then run `npx expo prebuild --clean`. On iOS the `@rnmapbox/navigation` plugin:
 - sets `$RNMapboxMapsSwiftPackageManager = { link: false }` in the Podfile, see [iOS](#ios);
-- adds the Navigation SDK's binary frameworks to `rnmapbox-maps`' framework search paths, which Xcode 26 needs with React Native 0.88+;
+- adds the Navigation SDK's binary frameworks to `rnmapbox-maps`' framework search paths, which Xcode 26 needs with React Native 0.87+;
 - sets `NSLocationWhenInUseUsageDescription`, unless `locationWhenInUsePermission` is `false`;
 - adds `audio` to `UIBackgroundModes`, so voice instructions keep playing in the background, unless `backgroundAudio` is `false`. Without it the Navigation SDK asserts in debug builds when guidance starts. Declare it only if your app speaks guidance; App Review rejects unused background modes;
 - with `carPlay: true`, adds the CarPlay scene and the `com.apple.developer.carplay-maps` entitlement, and with `carPlayRoot: true` also hands the `AppDelegate.swift` React Native factory to CarPlay, see [CarPlay](#carplay).
@@ -427,7 +427,7 @@ function CarMapLayers() {
 
 ### Android Auto
 
-Experimental. With the plugin's `androidAuto: true`, Android Auto shows a navigation map for the same session as the phone, following the location while guidance runs, and `<CarMap>` adds to it. It isn't a complete navigation app yet: no `NavigationManager` (Android Auto doesn't know a trip is running), no turn-by-turn templates, and it hasn't been tested on a head unit. Android Auto starts no JS of its own, so `<CarMap>` renders once the app's React Native is running.
+Experimental. With the plugin's `androidAuto: true`, Android Auto shows a navigation map for the same session as the phone, following the location while guidance runs, and `<CarMap>` adds to it. Guidance is reported to Android Auto's `NavigationManager`, so Android Auto knows a trip is running and ending it there stops guidance. It isn't a complete navigation app yet: no trip updates or turn-by-turn templates, and it hasn't been tested on a head unit. Android Auto starts no JS of its own, so `<CarMap>` renders once the app's React Native is running.
 
 In debug builds, a car screen preview helps without a head unit:
 
