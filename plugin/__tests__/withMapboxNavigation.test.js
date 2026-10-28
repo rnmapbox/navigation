@@ -1,3 +1,4 @@
+const withMapboxNavigation = require('../withMapboxNavigation');
 const {
   applyAndroidAutoManifest,
   applyBackgroundAudio,
@@ -74,6 +75,27 @@ describe('applyBackgroundAudio', () => {
     expect(
       applyBackgroundAudio(applyBackgroundAudio({})).UIBackgroundModes
     ).toEqual(['audio']);
+  });
+});
+
+describe('withMapboxNavigation', () => {
+  const run = (props) =>
+    withMapboxNavigation({ name: 'App', slug: 'app' }, props);
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('warns that backgroundAudio is ignored', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    run({ backgroundAudio: false });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(/backgroundAudio was removed/);
+  });
+
+  it("doesn't warn without backgroundAudio", () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    run();
+    run({});
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 
