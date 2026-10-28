@@ -7,6 +7,7 @@ import com.mapbox.common.location.Location
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.EdgeInsets
 import com.mapbox.maps.MapView
+import com.mapbox.maps.Style
 import com.mapbox.maps.plugin.PuckBearing
 import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.plugin.animation.camera
@@ -32,6 +33,7 @@ import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineApi
 import com.mapbox.navigation.ui.maps.route.line.api.MapboxRouteLineView
 import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineApiOptions
 import com.mapbox.navigation.ui.maps.route.line.model.MapboxRouteLineViewOptions
+import com.mapbox.navigation.ui.maps.route.line.model.RouteLineColorResources
 import com.rnmapbox.rnmbx.components.mapview.Cancelable
 import com.rnmapbox.rnmbx.components.mapview.OnCameraWillMoveMapListener
 import com.rnmapbox.rnmbx.components.mapview.RNMBXMapView
@@ -122,6 +124,7 @@ class RNMBXNavigationMapBinding(
     mapView.camera.addCameraAnimationsLifecycleListener(NavigationBasicGesturesHandler(navigationCamera))
     // Style reloads drop the route layers.
     mapView.mapboxMap.subscribeStyleLoaded {
+      mapView.mapboxMap.style?.let { applyRouteLineStyle(it) }
       routeLineApi.getRouteDrawData { data ->
         mapView.mapboxMap.style?.let { routeLineView.renderRouteDrawData(it, data) }
       }
@@ -139,6 +142,24 @@ class RNMBXNavigationMapBinding(
     viewportDataSource.followingPadding = viewportPadding
     viewportDataSource.overviewPadding = viewportPadding
     viewportDataSource.evaluate()
+  }
+
+  private var routeLineStyle = RNMBXRouteLineStyle()
+
+  fun setRouteLineStyle(style: RNMBXRouteLineStyle) {
+    if (style == routeLineStyle) return
+    routeLineStyle = style
+    val mapStyle = mapView.mapboxMap.style ?: return
+    applyRouteLineStyle(mapStyle)
+    routeLineApi.getRouteDrawData { data ->
+      mapView.mapboxMap.style?.let { routeLineView.renderRouteDrawData(it, data) }
+    }
+  }
+
+  private fun applyRouteLineStyle(style: Style) {
+    routeLineView.updateDynamicOptions(style) {
+      routeLineColorResources(routeLineStyle.colorResources())
+    }
   }
 
   /** Fits the camera to a previewed route once, leaving the navigation camera idle. */
@@ -229,4 +250,28 @@ class RNMBXNavigationMapBinding(
     val NO_PADDING = EdgeInsets(0.0, 0.0, 0.0, 0.0)
     const val ROUTE_CLICK_PADDING = 30f
   }
+}
+
+/** Colors from `<NavigationViewport routeLineStyle>`; null keeps the SDK's. */
+data class RNMBXRouteLineStyle(
+  val color: Int? = null,
+  val casingColor: Int? = null,
+  val alternativeColor: Int? = null,
+  val traveledColor: Int? = null
+) {
+  // Matches iOS, where the route color also stands for low and unknown traffic.
+  fun colorResources(): RouteLineColorResources = RouteLineColorResources.Builder().apply {
+    color?.let {
+      routeDefaultColor(it)
+      routeLowCongestionColor(it)
+      routeUnknownCongestionColor(it)
+    }
+    casingColor?.let { routeCasingColor(it) }
+    alternativeColor?.let {
+      alternativeRouteDefaultColor(it)
+      alternativeRouteLowCongestionColor(it)
+      alternativeRouteUnknownCongestionColor(it)
+    }
+    traveledColor?.let { routeLineTraveledColor(it) }
+  }.build()
 }

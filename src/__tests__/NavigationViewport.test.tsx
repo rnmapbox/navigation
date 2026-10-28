@@ -25,4 +25,16 @@ describe('NavigationViewport', () => {
       left: 0,
     });
   });
+
+  it('passes route line colors to the native view', () => {
+    const element = NavigationViewport({
+      routeLineStyle: { color: '#7c3aed', traveledColor: 'transparent' },
+    });
+    expect(element.props).toMatchObject({
+      routeLineColor: '#7c3aed',
+      routeLineCasingColor: undefined,
+      routeLineAlternativeColor: undefined,
+      routeLineTraveledColor: 'transparent',
+    });
+  });
 });

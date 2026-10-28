@@ -50,6 +50,10 @@ export interface NativeProps extends ViewProps {
   routeId?: CodegenTypes.Double;
   simulate?: boolean;
   mute?: boolean;
+  /** Empty for the SDK default. */
+  styleURL?: string;
+  /** Empty to use `styleURL` at night too, or the SDK default without it. */
+  nightStyleURL?: string;
   onRouteProgress?: CodegenTypes.DirectEventHandler<RouteProgressEvent>;
   onArrive?: CodegenTypes.DirectEventHandler<ArriveEvent>;
   onCancel?: CodegenTypes.DirectEventHandler<Readonly<{}>>;

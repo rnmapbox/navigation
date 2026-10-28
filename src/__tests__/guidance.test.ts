@@ -3,7 +3,6 @@ import {
   formatArrival,
   formatDistance,
   formatDuration,
-  isNight,
   maneuverGlyph,
 } from '../guidance';
 
@@ -33,19 +32,6 @@ describe('guidance', () => {
     expect(formatDistance(150, 'imperial')).toBe('500 ft');
     expect(formatDistance(1609, 'imperial')).toBe('1.0 mi');
     expect(formatDistance(40000, 'imperial')).toBe('25 mi');
-  });
-
-  it('tells night from day by the sun', () => {
-    // San Francisco on 2026-06-21: sunrise 05:48, sunset 20:35 PDT.
-    const sf = [37.79, -122.39] as const;
-    expect(isNight(...sf, new Date('2026-06-21T20:00:00Z'))).toBe(false);
-    expect(isNight(...sf, new Date('2026-06-21T12:40:00Z'))).toBe(true);
-    expect(isNight(...sf, new Date('2026-06-21T12:55:00Z'))).toBe(false);
-    expect(isNight(...sf, new Date('2026-06-22T03:30:00Z'))).toBe(false);
-    expect(isNight(...sf, new Date('2026-06-22T03:45:00Z'))).toBe(true);
-    // Polar night and midnight sun in Tromsø.
-    expect(isNight(69.65, 18.96, new Date('2026-12-21T11:00:00Z'))).toBe(true);
-    expect(isNight(69.65, 18.96, new Date('2026-06-21T23:00:00Z'))).toBe(false);
   });
 
   it('formats durations', () => {

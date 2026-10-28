@@ -25,6 +25,7 @@ import Navigation, {
 import type { FeatureCollection } from 'geojson';
 
 import env from '../env.json';
+import MarkersScreen from './MarkersScreen';
 import NavigationViewScreen from './NavigationViewScreen';
 import RNNavigationViewScreen from './RNNavigationViewScreen';
 import RouteLifecycleScreen from './RouteLifecycleScreen';
@@ -67,7 +68,7 @@ function formatDuration(seconds: number) {
 
 export default function App() {
   const [screen, setScreen] = useState<
-    'navigation' | 'routes' | 'navigationView' | 'rnNavigationView'
+    'navigation' | 'routes' | 'navigationView' | 'rnNavigationView' | 'markers'
   >('navigation');
   switch (screen) {
     case 'navigation':
@@ -76,6 +77,7 @@ export default function App() {
           onOpenRouteLifecycle={() => setScreen('routes')}
           onOpenNavigationView={() => setScreen('navigationView')}
           onOpenRNNavigationView={() => setScreen('rnNavigationView')}
+          onOpenMarkers={() => setScreen('markers')}
         />
       );
     case 'routes':
@@ -85,6 +87,13 @@ export default function App() {
         <NavigationViewScreen
           origin={ORIGIN}
           destination={DESTINATION}
+          onClose={() => setScreen('navigation')}
+        />
+      );
+    case 'markers':
+      return (
+        <MarkersScreen
+          origin={ORIGIN}
           onClose={() => setScreen('navigation')}
         />
       );
@@ -103,10 +112,12 @@ function NavigationScreen({
   onOpenRouteLifecycle,
   onOpenNavigationView,
   onOpenRNNavigationView,
+  onOpenMarkers,
 }: {
   onOpenRouteLifecycle: () => void;
   onOpenNavigationView: () => void;
   onOpenRNNavigationView: () => void;
+  onOpenMarkers: () => void;
 }) {
   const [route, setRoute] = useState<Route>();
   const [progress, setProgress] = useState<RouteProgressEvent>();
@@ -267,6 +278,11 @@ function NavigationScreen({
               label="RNNavigationView"
               onPress={onOpenRNNavigationView}
               testID="open-rn-navigation-view"
+            />
+            <Chip
+              label="Markers"
+              onPress={onOpenMarkers}
+              testID="open-markers"
             />
           </>
         ) : (

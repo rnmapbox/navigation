@@ -39,6 +39,7 @@ export type { DistanceUnit } from './guidance';
 export {
   NavigationViewport,
   type NavigationViewportProps,
+  type RouteLineStyle,
   type ViewportPadding,
 } from './NavigationViewport';
 

@@ -1,3 +1,4 @@
+import * as ReactNative from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { RNNavigationView } from '../RNNavigationView';
@@ -246,21 +247,14 @@ describe('RNNavigationView', () => {
     });
   });
 
-  it('switches the map and its UI to night', async () => {
+  it('switches the map and its UI to night in dark mode', async () => {
     const lightPreset = (renderer: ReactTestRenderer) =>
       renderer.root.findByType('StyleImport' as never).props.config.lightPreset;
     const renderer = await render(<RNNavigationView route={route} />);
     expect(lightPreset(renderer)).toBe('day');
 
-    jest.useFakeTimers({ now: new Date('2026-06-22T08:00:00Z') });
-    emit(native.onLocationChange, {
-      latitude: 37.79,
-      longitude: -122.39,
-      speed: 10,
-      course: 90,
-      roadName: '',
-    });
-    jest.useRealTimers();
+    jest.spyOn(ReactNative, 'useColorScheme').mockReturnValue('dark');
+    await act(async () => renderer.update(<RNNavigationView route={route} />));
     expect(lightPreset(renderer)).toBe('night');
 
     await act(async () =>
@@ -274,6 +268,39 @@ describe('RNNavigationView', () => {
       )
     );
     expect(renderer.root.findAllByType('StyleImport' as never)).toHaveLength(0);
+    jest.restoreAllMocks();
+  });
+
+  it('uses nightStyleURL at night and passes routeLineStyle to its viewport', async () => {
+    const mapStyleURL = (renderer: ReactTestRenderer) =>
+      renderer.root.findByType('MapView' as never).props.styleURL;
+    const routeLineStyle = { color: '#7c3aed' };
+    const renderer = await render(
+      <RNNavigationView
+        route={route}
+        appearance="day"
+        styleURL="mapbox://styles/me/day"
+        nightStyleURL="mapbox://styles/me/night"
+        routeLineStyle={routeLineStyle}
+      />
+    );
+    expect(mapStyleURL(renderer)).toBe('mapbox://styles/me/day');
+    expect(
+      renderer.root.findByType('RNMBXNavigationViewport' as never).props
+        .routeLineColor
+    ).toBe('#7c3aed');
+
+    await act(async () =>
+      renderer.update(
+        <RNNavigationView
+          route={route}
+          appearance="night"
+          styleURL="mapbox://styles/me/day"
+          nightStyleURL="mapbox://styles/me/night"
+        />
+      )
+    );
+    expect(mapStyleURL(renderer)).toBe('mapbox://styles/me/night');
   });
 
   it('shows the arrival card and ends the trip from it', async () => {

@@ -1,3 +1,5 @@
+import type { ColorValue } from 'react-native';
+
 import NativeNavigationViewport from './specs/RNMBXNavigationViewportNativeComponent';
 
 /**
@@ -13,6 +15,22 @@ export type ViewportPadding = {
 };
 
 /**
+ * Colors of the route lines the Navigation SDK draws on a navigation map. Unset colors keep the SDK defaults.
+ *
+ * @group Components
+ */
+export type RouteLineStyle = {
+  /** Main route, where traffic is low or unknown. Moderate, heavy and severe traffic keep the SDK's colors. */
+  color?: ColorValue;
+  /** Border of the main route. */
+  casingColor?: ColorValue;
+  /** Alternative routes, where traffic is low or unknown. */
+  alternativeColor?: ColorValue;
+  /** Part of the main route already traveled during guidance. Defaults to transparent, so that part disappears. */
+  traveledColor?: ColorValue;
+};
+
+/**
  * Props of {@link NavigationViewport}.
  *
  * @group Components
@@ -23,6 +41,8 @@ export type NavigationViewportProps = {
    * over the map. Applies to `following`, `overview` and the route preview.
    */
   padding?: ViewportPadding;
+  /** Colors of the route line and the alternative routes on this map. */
+  routeLineStyle?: RouteLineStyle;
 };
 
 /**
@@ -33,7 +53,10 @@ export type NavigationViewportProps = {
  * @param props See {@link NavigationViewportProps}.
  * @group Components
  */
-export function NavigationViewport({ padding }: NavigationViewportProps) {
+export function NavigationViewport({
+  padding,
+  routeLineStyle,
+}: NavigationViewportProps) {
   return (
     <NativeNavigationViewport
       viewportPadding={{
@@ -42,6 +65,10 @@ export function NavigationViewport({ padding }: NavigationViewportProps) {
         bottom: padding?.bottom ?? 0,
         left: padding?.left ?? 0,
       }}
+      routeLineColor={routeLineStyle?.color}
+      routeLineCasingColor={routeLineStyle?.casingColor}
+      routeLineAlternativeColor={routeLineStyle?.alternativeColor}
+      routeLineTraveledColor={routeLineStyle?.traveledColor}
     />
   );
 }

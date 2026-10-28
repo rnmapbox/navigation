@@ -38,8 +38,17 @@ class RNMBXNavigationViewManager :
     view.mute = value
   }
 
+  override fun setStyleURL(view: RNMBXNavigationView, value: String?) {
+    view.styleURL = value ?: ""
+  }
+
+  override fun setNightStyleURL(view: RNMBXNavigationView, value: String?) {
+    view.nightStyleURL = value ?: ""
+  }
+
   override fun onAfterUpdateTransaction(view: RNMBXNavigationView) {
     super.onAfterUpdateTransaction(view)
+    view.applyMapStyle()
     view.startGuidanceIfNeeded()
   }
 

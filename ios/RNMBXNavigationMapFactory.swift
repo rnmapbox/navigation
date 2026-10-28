@@ -68,6 +68,56 @@ final class RNMBXNavigationMapView: NavigationMapView {
 
   private var sdkViewportPadding: UIEdgeInsets = .zero
 
+  /// Set by `<NavigationViewport routeLineStyle>`; nil colors keep the SDK's.
+  var customRouteLineStyle = RNMBXRouteLineStyle() {
+    didSet {
+      guard customRouteLineStyle != oldValue else { return }
+      applyRouteLineStyle()
+      redrawRoutes()
+    }
+  }
+
+  private lazy var sdkRouteLineColors = (
+    congestion: congestionConfiguration,
+    casing: routeCasingColor,
+    traversed: traversedRouteColor
+  )
+
+  private func applyRouteLineStyle() {
+    let sdk = sdkRouteLineColors
+    congestionConfiguration = sdk.congestion
+    if let color = customRouteLineStyle.color {
+      routeColor = color
+    }
+    if let color = customRouteLineStyle.alternativeColor {
+      routeAlternateColor = color
+    }
+    routeCasingColor = customRouteLineStyle.casingColor ?? sdk.casing
+    traversedRouteColor = customRouteLineStyle.traveledColor ?? sdk.traversed
+  }
+
+  /// The SDK only reads route line colors when it shows routes.
+  private func redrawRoutes() {
+    let session = RNMBXNavigationSession.shared
+    if let progress = session.routeProgress {
+      show(
+        progress.navigationRoutes,
+        routeAnnotationKinds: showsRelativeDurationsOnAlternativeManuever ? [.relativeDurationsOnAlternativeManuever] : []
+      )
+    } else if let routes = session.previewRoutes {
+      show(routes, routeAnnotationKinds: [])
+    }
+  }
+
+  /// `NavigationViewController`'s styles set route line colors through `NavigationMapView.appearance()`, which UIKit
+  /// applies to every navigation map when it enters a window.
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if customRouteLineStyle != RNMBXRouteLineStyle() {
+      applyRouteLineStyle()
+    }
+  }
+
   /// The SDK adds the safe area to `viewportPadding`; `<NavigationViewport>` padding already accounts for it.
   override var safeAreaInsets: UIEdgeInsets {
     customViewportPadding == nil ? super.safeAreaInsets : .zero
@@ -76,6 +126,13 @@ final class RNMBXNavigationMapView: NavigationMapView {
   static func adopting(_ mapView: MapView) -> RNMBXNavigationMapView? {
     mapView.superview as? RNMBXNavigationMapView
   }
+}
+
+struct RNMBXRouteLineStyle: Equatable {
+  var color: UIColor?
+  var casingColor: UIColor?
+  var alternativeColor: UIColor?
+  var traveledColor: UIColor?
 }
 
 /// Mirrors the shared session (preview routes, camera state, stop) onto one `NavigationMapView`.

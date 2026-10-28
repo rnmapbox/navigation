@@ -265,6 +265,21 @@ There's one navigation session per app. Every navigation map shows its route, pu
 
 `<NavigationViewport>` configures the map it's a child of. Its `padding` is in points from the map's edges and ignores the safe area. It applies to `following`, `overview` and the route preview. Without it the SDK defaults apply: the safe area plus a small margin on iOS, and no padding on Android.
 
+`routeLineStyle` sets the colors of the route lines on that map. Unset colors keep the SDK's:
+
+```tsx
+<NavigationViewport
+  routeLineStyle={{
+    color: '#7c3aed', // main route where traffic is low or unknown
+    casingColor: '#4c1d95',
+    alternativeColor: '#c4b5fd',
+    traveledColor: 'rgba(124, 58, 237, 0.35)', // defaults to transparent: the traveled part disappears
+  }}
+/>
+```
+
+The colors can change during guidance. On iOS the SDK then redraws the route, and the traveled part shows in the route color until the next location update.
+
 ### Camera
 
 | State       | Camera                                                                    |
@@ -320,6 +335,8 @@ import { NavigationView } from '@rnmapbox/navigation';
 | `waypoints`       | Used without `route`: the view requests a route through them and releases it on unmount. |
 | `simulate`        | Drives the route with simulated locations. Read when guidance starts.               |
 | `mute`            | Mutes voice instructions. The view's own mute button also toggles them.             |
+| `styleURL`        | Map style by day. Defaults to Mapbox Standard.                                      |
+| `nightStyleURL`   | Map style at night, i.e. while the system is in dark mode. Defaults to `styleURL`, or without it to Standard's night preset. |
 | `onRouteProgress` | Same event as `addRouteProgressListener`.                                           |
 | `onArrive`        | `{ waypointIndex, isFinalDestination }`; `waypointIndex` counts the origin as 0.    |
 | `onCancel`        | The user ended the trip. Guidance has stopped; unmount the view.                    |
@@ -336,8 +353,9 @@ It uses the app's single navigation session:
 `<RNNavigationView>` is the same kind of navigation UI written in React Native on top of the API above: a navigation map plus a maneuver banner with road shields, exit numbers and lanes, a speed limit sign, the road name, ETA and remaining time and distance, mute, overview/recenter and end buttons, and an arrival card. It takes the same props as `<NavigationView>`, plus:
 
 - `distanceUnit`: `'metric'` or `'imperial'`, for the distances it shows and the voice instructions of a route it requests through `waypoints`. Defaults to `getDefaultDistanceUnit()`.
-- `appearance`: `'auto'` (default) switches between `'day'` and `'night'` at sunrise and sunset at the user's location; the UI and the Standard style's light preset follow it.
-- `styleURL`, defaulting to Mapbox Standard. With another style, `appearance` only changes the UI.
+- `appearance`: `'auto'` (default) is `'night'` while the system is in dark mode, like `<NavigationView>`; the UI and the Standard style's light preset follow it.
+- `styleURL`, defaulting to Mapbox Standard. With another style, `appearance` only changes the UI. `nightStyleURL` replaces it while `appearance` is night.
+- `routeLineStyle`, the same as `<NavigationViewport>`'s.
 - `children`, rendered inside its `MapView`.
 
 With `waypoints` it also requests alternative routes. Navigation maps draw the alternatives of the active guidance, and tapping one switches guidance to it, which `addRouteChangeListener` reports with `reason: 'alternative'`.
@@ -395,7 +413,7 @@ adb shell am broadcast -a com.rnmapbox.navigation.DEBUG_CAR_PREVIEW --ez show tr
 
 ## Example app
 
-`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, a "Route lifecycle" screen with `Route` checks and live counts, a "NavigationView" screen with simulated guidance, and a "RNNavigationView" screen with the React Native UI, simulated or on the device's location, and a log of arrival, off-route, reroute and voice events.
+`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, a "Route lifecycle" screen with `Route` checks and live counts, a "NavigationView" screen with simulated guidance, and a "RNNavigationView" screen with the React Native UI, simulated or on the device's location, and a log of arrival, off-route, reroute and voice events, and a "Markers" screen with `@rnmapbox/maps` markers, a `ShapeSource` of points of interest, custom route line colors and React Native map controls during simulated guidance.
 
 It reads your Mapbox access token from `example/accesstoken` (gitignored), the same way the `@rnmapbox/maps` example does:
 
@@ -421,7 +439,7 @@ npx expo run:android
 ## Known limitations
 
 - No explicit offline routing API. Requests use the SDK's default hybrid router, which only falls back to onboard routing with routing tiles already on the device.
-- Android `<NavigationView>` has no end-of-route or feedback UI, no day/night styles, no road name label, and doesn't show reroutes as such.
+- Android `<NavigationView>` has no end-of-route or feedback UI, no night colors for its UI (only the map switches), no road name label, and doesn't show reroutes as such.
 - `<RNNavigationView>` draws road shields from the Directions API's shield images, not the Mapbox designed shields the native banners use.
 - The Expo config plugin is only tested with Expo SDK 58.
 - `@rnmapbox/maps` `LocationPuck` and `UserLocation` don't work on navigation maps: the navigation puck replaces the map's location provider.
