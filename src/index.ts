@@ -5,7 +5,6 @@ export {
   type SessionState,
   type StartActiveGuidanceOptions,
   type StartFreeDriveOptions,
-  type StopNavigationOptions,
 } from './Navigation';
 export type {
   ArriveEvent,

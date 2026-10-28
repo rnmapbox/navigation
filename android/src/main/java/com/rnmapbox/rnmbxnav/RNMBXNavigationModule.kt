@@ -247,7 +247,13 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  override fun startFreeDrive(simulate: Boolean, longitude: Double, latitude: Double, promise: Promise) {
+  override fun startFreeDrive(
+    simulate: Boolean,
+    longitude: Double,
+    latitude: Double,
+    foregroundService: Boolean,
+    promise: Promise,
+  ) {
     UiThreadUtil.runOnUiThread {
       val navigation = RNMBXNavigationSession.mapboxNavigation(reactApplicationContext)
       if (navigation == null) {
@@ -255,7 +261,11 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
         return@runOnUiThread
       }
       try {
-        RNMBXNavigationSession.startFreeDrive(navigation, if (simulate) Point.fromLngLat(longitude, latitude) else null)
+        RNMBXNavigationSession.startFreeDrive(
+          navigation,
+          if (simulate) Point.fromLngLat(longitude, latitude) else null,
+          foregroundService,
+        )
         promise.resolve(null)
       } catch (e: SecurityException) {
         promise.reject("location_permission", e.message ?: e.toString(), e)
@@ -263,8 +273,12 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  override fun stopNavigation(freeDrive: Boolean) {
-    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.stopNavigation(freeDrive) }
+  override fun stopNavigation() {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.stopNavigation() }
+  }
+
+  override fun stopViewGuidance() {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.stopViewGuidance() }
   }
 
   override fun getSessionState(): String = RNMBXNavigationSession.sessionState.jsName

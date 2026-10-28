@@ -220,7 +220,13 @@ function NavigationScreen({
 
   const stopGuidance = (freeDrive: boolean) => {
     navigatingRef.current = false;
-    Navigation.stopNavigation({ freeDrive });
+    if (freeDrive) {
+      Navigation.startFreeDrive().catch((error: Error) =>
+        setStatus(`free drive failed: ${error.message}`)
+      );
+    } else {
+      Navigation.stopNavigation();
+    }
     setNavigating(false);
     setRoute(undefined);
     setProgress(undefined);

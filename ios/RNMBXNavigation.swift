@@ -300,9 +300,15 @@ public final class RNMBXNavigation: NSObject {
     }
   }
 
-  @objc public func stopNavigation(_ freeDrive: Bool) {
+  @objc public func stopNavigation() {
     Task { @MainActor in
-      RNMBXNavigationSession.shared.stop(freeDrive: freeDrive)
+      RNMBXNavigationSession.shared.stop()
+    }
+  }
+
+  @objc public func stopViewGuidance() {
+    Task { @MainActor in
+      await RNMBXNavigationSession.shared.stopViewGuidance()
     }
   }
 

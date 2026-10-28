@@ -22,7 +22,7 @@ jest.mock('../specs/NativeRNMBXNavigationModule', () => {
   return {
     __esModule: true,
     default: {
-      stopNavigation: jest.fn(),
+      stopViewGuidance: jest.fn(),
       setCameraState: jest.fn(),
       getCameraState: jest.fn(() => 'following'),
       getDefaultDistanceUnit: jest.fn(() => 'metric'),
@@ -116,7 +116,7 @@ describe('RNNavigationView', () => {
     );
 
     await act(async () => renderer.unmount());
-    expect(native.stopNavigation).toHaveBeenCalled();
+    expect(native.stopViewGuidance).toHaveBeenCalledTimes(1);
   });
 
   it('renders the banner, lanes, speed limit and road name from events', async () => {
@@ -336,7 +336,7 @@ describe('RNNavigationView', () => {
         .findByProps({ testID: 'rn-navigation-done' })
         .props.onPress()
     );
-    expect(native.stopNavigation).toHaveBeenCalled();
+    expect(native.stopViewGuidance).toHaveBeenCalledTimes(1);
     expect(onCancel).toHaveBeenCalled();
     expect(
       renderer.root.findAllByProps({ testID: 'rn-navigation-banner' })

@@ -83,6 +83,7 @@
 - (void)startFreeDrive:(BOOL)simulate
              longitude:(double)longitude
               latitude:(double)latitude
+     foregroundService:(BOOL)foregroundService
                resolve:(RCTPromiseResolveBlock)resolve
                 reject:(RCTPromiseRejectBlock)reject
 {
@@ -97,9 +98,14 @@
       }];
 }
 
-- (void)stopNavigation:(BOOL)freeDrive
+- (void)stopNavigation
 {
-  [_navigation stopNavigation:freeDrive];
+  [_navigation stopNavigation];
+}
+
+- (void)stopViewGuidance
+{
+  [_navigation stopViewGuidance];
 }
 
 - (NSString *)getSessionState

@@ -172,9 +172,12 @@ export interface Spec extends TurboModule {
   startFreeDrive(
     simulate: boolean,
     longitude: number,
-    latitude: number
+    latitude: number,
+    foregroundService: boolean
   ): Promise<void>;
-  stopNavigation(freeDrive: boolean): void;
+  stopNavigation(): void;
+  /** Ends guidance started by a navigation view; back to free drive if guidance started from free drive. */
+  stopViewGuidance(): void;
   /** One of "idle", "freeDrive", "activeGuidance". */
   getSessionState(): string;
   /** One of "following", "overview", "idle". */

@@ -203,22 +203,21 @@ describe('Navigation', () => {
 
   it('starts free drive on the device location unless simulated', async () => {
     await Navigation.startFreeDrive();
-    expect(native.startFreeDrive).toHaveBeenCalledWith(false, 0, 0);
+    expect(native.startFreeDrive).toHaveBeenCalledWith(false, 0, 0, false);
     await Navigation.startFreeDrive({
       simulatedLocation: [-122.4194, 37.7749],
     });
     expect(native.startFreeDrive).toHaveBeenLastCalledWith(
       true,
       -122.4194,
-      37.7749
+      37.7749,
+      false
     );
   });
 
-  it('stops to idle unless asked to keep free drive', () => {
-    Navigation.stopNavigation();
-    expect(native.stopNavigation).toHaveBeenCalledWith(false);
-    Navigation.stopNavigation({ freeDrive: true });
-    expect(native.stopNavigation).toHaveBeenLastCalledWith(true);
+  it('starts free drive with the foreground service only when asked', async () => {
+    await Navigation.startFreeDrive({ foregroundService: true });
+    expect(native.startFreeDrive).toHaveBeenLastCalledWith(false, 0, 0, true);
   });
 
   it('reports the session state', () => {

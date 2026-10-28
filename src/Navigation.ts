@@ -49,16 +49,11 @@ export type SessionState = 'idle' | 'freeDrive' | 'activeGuidance';
 export type StartFreeDriveOptions = {
   /** Simulate the device standing still at this position instead of using its location. */
   simulatedLocation?: Position;
-};
-
-/**
- * Options of {@link Navigation.stopNavigation}.
- *
- * @group Core
- */
-export type StopNavigationOptions = {
-  /** Keep matching the location in free drive instead of going idle. Does nothing if the session is idle. */
-  freeDrive?: boolean;
+  /**
+   * Android: keep tracking in the background, with the Navigation SDK's foreground service and its notification.
+   * Without it, Android throttles location updates in the background. Ignored when simulating and on iOS.
+   */
+  foregroundService?: boolean;
 };
 
 /**
@@ -216,8 +211,11 @@ export const Navigation = {
 
   /**
    * Starts free drive: the location is matched to the road without a route, so {@link addLocationListener} reports
-   * the road name and speed limit, and navigation maps show the puck. Ends any active guidance. It runs until
-   * {@link stopNavigation} or a JS reload; this API never starts it on its own.
+   * the road name and speed limit, and navigation maps show the puck. It runs until {@link stopNavigation} or a JS
+   * reload; this API never starts it on its own.
+   *
+   * During guidance it ends the guidance and keeps the session in free drive. After simulated guidance, the simulated
+   * device stays where guidance stopped unless `simulatedLocation` moves it.
    *
    * Free drive trips are billed by Mapbox like guidance trips, see
    * [Navigation SDK pricing](https://www.mapbox.com/pricing#navigation).
@@ -230,16 +228,17 @@ export const Navigation = {
     return NativeNavigation.startFreeDrive(
       options.simulatedLocation != null,
       longitude,
-      latitude
+      latitude,
+      options.foregroundService ?? false
     );
   },
 
   /**
    * Stops guidance or free drive and removes the route from navigation maps. The camera switches to `idle` and eases
-   * back to north-up. With `freeDrive`, the session stays in free drive, simulated if guidance was.
+   * back to north-up.
    */
-  stopNavigation(options: StopNavigationOptions = {}): void {
-    NativeNavigation.stopNavigation(options.freeDrive ?? false);
+  stopNavigation(): void {
+    NativeNavigation.stopNavigation();
   },
 
   /** The state of the navigation session, see {@link addSessionStateListener}. */
