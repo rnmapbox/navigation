@@ -8,6 +8,7 @@ import MapboxNavigationCore
 public final class RNMBXNavigation: NSObject {
   @objc public var onRouteProgress: (([String: Any]) -> Void)?
   @objc public var onCameraStateChange: (([String: Any]) -> Void)?
+  @objc public var onSessionStateChange: (([String: Any]) -> Void)?
   @objc public var onLocationChange: (([String: Any]) -> Void)?
   @objc public var onArrive: (([String: Any]) -> Void)?
   @objc public var onOffRouteChange: (([String: Any]) -> Void)?
@@ -21,6 +22,7 @@ public final class RNMBXNavigation: NSObject {
   /// `getCameraState` and `isVoiceMuted` are synchronous and run on the JS thread; the session lives on the main thread.
   private let stateLock = NSLock()
   private var _cameraState = "idle"
+  private var _sessionState = "idle"
   private var _voiceMuted = false
   private var _carPlayConnected = false
   private var _carMap: [String: Any] = ["id": 0, "activity": "browsing"]
@@ -36,6 +38,15 @@ public final class RNMBXNavigation: NSObject {
           guard let self else { return }
           self.stateLock.withLock { self._cameraState = state }
           self.onCameraStateChange?(["state": state])
+        }
+        .store(in: &self.subscriptions)
+      session.$tripState
+        .map(Self.name)
+        .removeDuplicates()
+        .sink { [weak self] state in
+          guard let self else { return }
+          self.stateLock.withLock { self._sessionState = state }
+          self.onSessionStateChange?(["state": state])
         }
         .store(in: &self.subscriptions)
       session.$routeProgress
@@ -263,10 +274,40 @@ public final class RNMBXNavigation: NSObject {
     }
   }
 
-  @objc public func stopNavigation() {
+  @objc public func startFreeDrive(
+    _ simulate: Bool,
+    longitude: Double,
+    latitude: Double,
+    resolve: @escaping () -> Void,
+    reject: @escaping (String, String) -> Void
+  ) {
     Task { @MainActor in
-      RNMBXNavigationSession.shared.stop()
+      let session = RNMBXNavigationSession.shared
+      do {
+        _ = try session.mapboxNavigation()
+      } catch {
+        reject("no_access_token", error.localizedDescription)
+        return
+      }
+      do {
+        try await session.startFreeDrive(
+          simulatedLocation: simulate ? CLLocation(latitude: latitude, longitude: longitude) : nil
+        )
+        resolve()
+      } catch {
+        reject("location_permission", error.localizedDescription)
+      }
     }
+  }
+
+  @objc public func stopNavigation(_ freeDrive: Bool) {
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.stop(freeDrive: freeDrive)
+    }
+  }
+
+  @objc public func sessionState() -> String {
+    stateLock.withLock { _sessionState }
   }
 
   @objc public func setCameraState(_ state: String) {
@@ -337,6 +378,14 @@ public final class RNMBXNavigation: NSObject {
 
   @objc public func isCarPlayConnected() -> Bool {
     stateLock.withLock { _carPlayConnected }
+  }
+
+  private static func name(_ state: Session.State) -> String {
+    switch state {
+    case .idle: "idle"
+    case .freeDrive: "freeDrive"
+    case .activeGuidance: "activeGuidance"
+    }
   }
 
   private static func name(_ state: NavigationCameraState) -> String {

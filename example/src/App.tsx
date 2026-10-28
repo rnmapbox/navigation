@@ -18,9 +18,11 @@ import Navigation, {
   NAVIGATION_MAP_VIEW_IMPL,
   NavigationViewport,
   type CameraState,
+  type LocationEvent,
   type Position,
   type Route,
   type RouteProgressEvent,
+  type SessionState,
 } from '@rnmapbox/navigation';
 import type { FeatureCollection } from 'geojson';
 
@@ -60,6 +62,14 @@ function formatDistance(meters: number) {
   return meters >= 1000
     ? `${(meters / 1000).toFixed(1)} km`
     : `${Math.round(meters)} m`;
+}
+
+function formatRoad(location: LocationEvent | undefined) {
+  const limit = location?.speedLimit;
+  return [
+    location?.roadName || 'unnamed road',
+    limit ? `limit ${limit.speed} ${limit.unit}` : 'no speed limit',
+  ].join(' · ');
 }
 
 function formatDuration(seconds: number) {
@@ -137,6 +147,10 @@ function NavigationScreen({
     Navigation.getCameraState
   );
   const [status, setStatus] = useState('idle');
+  const [sessionState, setSessionState] = useState<SessionState>(
+    Navigation.getSessionState
+  );
+  const [location, setLocation] = useState<LocationEvent>();
   const [mapLayout, setMapLayout] = useState<LayoutRectangle>();
   const [bannerLayout, setBannerLayout] = useState<LayoutRectangle>();
   const [controlsLayout, setControlsLayout] = useState<LayoutRectangle>();
@@ -149,9 +163,14 @@ function NavigationScreen({
     );
     const cameraSubscription =
       Navigation.addCameraStateListener(setCameraState);
+    const sessionSubscription =
+      Navigation.addSessionStateListener(setSessionState);
+    const locationSubscription = Navigation.addLocationListener(setLocation);
     return () => {
       progressSubscription.remove();
       cameraSubscription.remove();
+      sessionSubscription.remove();
+      locationSubscription.remove();
     };
   }, []);
 
@@ -199,13 +218,27 @@ function NavigationScreen({
     }
   };
 
-  const stopGuidance = () => {
+  const stopGuidance = (freeDrive: boolean) => {
     navigatingRef.current = false;
-    Navigation.stopNavigation();
+    Navigation.stopNavigation({ freeDrive });
     setNavigating(false);
     setRoute(undefined);
     setProgress(undefined);
     setStatus('stopped');
+  };
+
+  // Free drive is billed like a trip; simulated here so it works without location permission.
+  const toggleFreeDrive = async () => {
+    if (sessionState === 'freeDrive') {
+      Navigation.stopNavigation();
+      setLocation(undefined);
+      return;
+    }
+    try {
+      await Navigation.startFreeDrive({ simulatedLocation: ORIGIN });
+    } catch (error) {
+      setStatus(`free drive failed: ${(error as Error).message}`);
+    }
   };
 
   return (
@@ -251,6 +284,15 @@ function NavigationScreen({
               {(progress.fractionTraveled * 100).toFixed(0)} %
             </Text>
           </>
+        ) : sessionState === 'freeDrive' ? (
+          <>
+            <Text style={styles.maneuver} testID="status">
+              Free drive
+            </Text>
+            <Text style={styles.maneuverDetail} testID="road">
+              {formatRoad(location)}
+            </Text>
+          </>
         ) : (
           <Text style={styles.maneuver} testID="status">
             {route
@@ -274,6 +316,12 @@ function NavigationScreen({
               onPress={startGuidance}
               disabled={!route}
               testID="start-simulation"
+            />
+            <Chip
+              label="Free drive"
+              selected={sessionState === 'freeDrive'}
+              onPress={toggleFreeDrive}
+              testID="free-drive"
             />
             <Chip
               label="Route lifecycle"
@@ -312,7 +360,16 @@ function NavigationScreen({
                 testID={`camera-${state}`}
               />
             ))}
-            <Chip label="Stop" onPress={stopGuidance} testID="stop" />
+            <Chip
+              label="Stop"
+              onPress={() => stopGuidance(false)}
+              testID="stop"
+            />
+            <Chip
+              label="Stop to free drive"
+              onPress={() => stopGuidance(true)}
+              testID="stop-to-free-drive"
+            />
           </>
         )}
       </View>

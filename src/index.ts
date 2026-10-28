@@ -2,7 +2,10 @@ export {
   Navigation,
   NAVIGATION_MAP_VIEW_IMPL,
   type CameraState,
+  type SessionState,
   type StartActiveGuidanceOptions,
+  type StartFreeDriveOptions,
+  type StopNavigationOptions,
 } from './Navigation';
 export type {
   ArriveEvent,

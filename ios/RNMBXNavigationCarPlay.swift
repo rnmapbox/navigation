@@ -102,6 +102,8 @@ final class RNMBXNavigationCarPlay: NSObject {
     _ window: CPWindow
   ) {
     let manager = CarPlayManager(navigationProvider: provider)
+    // Free drive trips are billed, so only `Navigation.startFreeDrive` starts one.
+    manager.startFreeDriveAutomatically = false
     manager.delegate = self
     self.manager = manager
     manager.templateApplicationScene(scene, didConnect: interfaceController, to: window)
@@ -188,8 +190,15 @@ extension RNMBXNavigationCarPlay: CarPlayManagerDelegate {
     MainActor.assumeIsolated {
       show(browsingMapView, activity: "browsing")
       // Ending the trip on the car ends it on the phone too; it already has if the phone stopped it.
-      if case .activeGuidance = RNMBXNavigationSession.shared.provider?.mapboxNavigation.tripSession().currentSession.state {
-        RNMBXNavigationSession.shared.stop()
+      let session = RNMBXNavigationSession.shared
+      switch session.provider?.mapboxNavigation.tripSession().currentSession.state {
+      case .activeGuidance:
+        session.stop()
+      // The end of route feedback starts free drive on its own.
+      case .freeDrive where !session.freeDriveRequested:
+        session.stop()
+      default:
+        break
       }
     }
   }
