@@ -50,8 +50,27 @@ describe('NavigationView', () => {
       routeId: 7,
       simulate: true,
       mute: false,
+      styleURL: '',
+      nightStyleURL: '',
     });
     expect(bindings.requestRoutes).not.toHaveBeenCalled();
+  });
+
+  it('passes its day and night map styles to the native view', async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        <NavigationView
+          route={makeRoute(7)}
+          styleURL="mapbox://styles/me/day"
+          nightStyleURL="mapbox://styles/me/night"
+        />
+      );
+    });
+    expect(nativeProps(renderer)).toMatchObject({
+      styleURL: 'mapbox://styles/me/day',
+      nightStyleURL: 'mapbox://styles/me/night',
+    });
   });
 
   it('requests a route through waypoints and releases it on unmount', async () => {

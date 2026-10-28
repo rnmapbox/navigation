@@ -129,6 +129,8 @@ static std::vector<Component> bannerComponents(NSArray<NSDictionary *> *componen
   const auto &newProps = static_cast<const RNMBXNavigationViewProps &>(*props);
   _view.simulate = newProps.simulate;
   _view.mute = newProps.mute;
+  _view.styleURL = [NSString stringWithUTF8String:newProps.styleURL.c_str()];
+  _view.nightStyleURL = [NSString stringWithUTF8String:newProps.nightStyleURL.c_str()];
   if (newProps.routeId != oldViewProps.routeId && newProps.routeId != 0) {
     RNMBXNavigationRoute *route = rnmbxnav::findPlatformRoute(newProps.routeId);
     if (route) {

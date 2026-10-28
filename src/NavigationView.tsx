@@ -45,6 +45,13 @@ export type NavigationViewProps = {
   simulate?: boolean;
   /** Mutes voice instructions. The view's own mute button also toggles them. */
   mute?: boolean;
+  /** Map style by day. Defaults to Mapbox Standard. */
+  styleURL?: string;
+  /**
+   * Map style at night, i.e. while the system is in dark mode. Defaults to `styleURL` if that's set, else to Mapbox
+   * Standard with its night light preset.
+   */
+  nightStyleURL?: string;
   /** Same event as {@link Navigation.addRouteProgressListener}. */
   onRouteProgress?: (event: RouteProgressEvent) => void;
   /** Same event as {@link Navigation.addArriveListener}. */
@@ -70,6 +77,8 @@ export function NavigationView({
   waypoints,
   simulate = false,
   mute = false,
+  styleURL,
+  nightStyleURL,
   onRouteProgress,
   onArrive,
   onCancel,
@@ -89,6 +98,8 @@ export function NavigationView({
       routeId={shown ? routeBindings().getRouteId(shown) : 0}
       simulate={simulate}
       mute={mute}
+      styleURL={styleURL ?? ''}
+      nightStyleURL={nightStyleURL ?? ''}
       onRouteProgress={(event) => onRouteProgress?.(event.nativeEvent)}
       onArrive={(event) => onArrive?.(event.nativeEvent)}
       onCancel={() => onCancel?.()}

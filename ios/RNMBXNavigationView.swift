@@ -17,6 +17,20 @@ public final class RNMBXNavigationView: UIView {
     didSet { RNMBXNavigationSession.shared.voiceMuted = mute }
   }
 
+  /// Empty for the SDK default.
+  @objc public var styleURL = "" {
+    didSet {
+      if styleURL != oldValue { applyStyles() }
+    }
+  }
+
+  /// Empty to use `styleURL`.
+  @objc public var nightStyleURL = "" {
+    didSet {
+      if nightStyleURL != oldValue { applyStyles() }
+    }
+  }
+
   @objc public var route: RNMBXNavigationRoute? {
     didSet {
       if route !== oldValue { scheduleGuidance() }
@@ -90,7 +104,8 @@ public final class RNMBXNavigationView: UIView {
     let options = NavigationOptions(
       mapboxNavigation: navigation,
       voiceController: provider.routeVoiceController,
-      eventsManager: provider.eventsManager()
+      eventsManager: provider.eventsManager(),
+      styles: styles
     )
     let controller = RNMBXNavigationViewController(navigationRoutes: route.routes, navigationOptions: options)
     controller.delegate = self
@@ -119,6 +134,37 @@ public final class RNMBXNavigationView: UIView {
         }
       }
       .store(in: &subscriptions)
+  }
+
+  /// Follows the system appearance. A single style, as the SDK's style manager picks between several by sunrise and
+  /// sunset even with `automaticallyAdjustsStyleForTimeOfDay` off, e.g. when the content size category changes.
+  private var styles: [MapboxNavigationUIKit.Style] {
+    let dayURL = URL(string: styleURL)
+    guard traitCollection.userInterfaceStyle == .dark else {
+      return [dayURL.map { url in
+        let style = DayStyle()
+        style.mapStyleURL = url
+        style.previewMapStyleURL = url
+        return style
+      } ?? StandardDayStyle()]
+    }
+    return [(URL(string: nightStyleURL) ?? dayURL).map { url in
+      let style = NightStyle()
+      style.mapStyleURL = url
+      style.previewMapStyleURL = url
+      return style
+    } ?? StandardNightStyle()]
+  }
+
+  private func applyStyles() {
+    navigationViewController?.styleManager.styles = styles
+  }
+
+  override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    if traitCollection.userInterfaceStyle != previousTraitCollection?.userInterfaceStyle {
+      applyStyles()
+    }
   }
 
   private func renderMute() {

@@ -1,6 +1,7 @@
 package com.rnmapbox.rnmbxnav
 
 import android.annotation.SuppressLint
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -16,8 +17,10 @@ import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.events.Event
+import com.mapbox.bindgen.Value
 import com.mapbox.common.location.Location
 import com.mapbox.maps.MapView
+import com.mapbox.maps.Style
 import com.mapbox.maps.plugin.compass.compass
 import com.mapbox.maps.plugin.scalebar.scalebar
 import com.mapbox.navigation.base.formatter.DistanceFormatterOptions
@@ -53,7 +56,14 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
       renderMute()
     }
 
+  /** Empty for Mapbox Standard. */
+  var styleURL = ""
+
+  /** Used in dark mode; empty for [styleURL]. */
+  var nightStyleURL = ""
+
   private val mapView = MapView(context)
+  private var loadedStyle = Style.STANDARD to false
   private val lifecycleRegistry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.CREATED }
   override val lifecycle: Lifecycle
     get() = lifecycleRegistry
@@ -174,6 +184,24 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
       stop()
       dispatch("topCancel", Arguments.createMap())
     }
+  }
+
+  fun applyMapStyle() {
+    val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    val url = (if (night) nightStyleURL.ifEmpty { styleURL } else styleURL).ifEmpty { Style.STANDARD }
+    val style = url to (night && url == Style.STANDARD)
+    if (style == loadedStyle) return
+    loadedStyle = style
+    mapView.mapboxMap.loadStyle(url) {
+      if (url == Style.STANDARD) {
+        it.setStyleImportConfigProperty("basemap", "lightPreset", Value.valueOf(if (style.second) "night" else "day"))
+      }
+    }
+  }
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    applyMapStyle()
   }
 
   /** Called once the props of a React update are all set. */

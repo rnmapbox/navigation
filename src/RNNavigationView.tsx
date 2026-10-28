@@ -8,6 +8,7 @@ import {
   type LayoutRectangle,
   type StyleProp,
   type TextStyle,
+  useColorScheme,
 } from 'react-native';
 import { MapView, StyleImport } from '@rnmapbox/maps';
 
@@ -16,7 +17,7 @@ import {
   NAVIGATION_MAP_VIEW_IMPL,
   type CameraState,
 } from './Navigation';
-import { NavigationViewport } from './NavigationViewport';
+import { NavigationViewport, type RouteLineStyle } from './NavigationViewport';
 import { useRequestedRoute, type NavigationViewProps } from './NavigationView';
 import type { Route } from './Route';
 import type {
@@ -31,13 +32,12 @@ import {
   formatArrival,
   formatDistance,
   formatDuration,
-  isNight,
   maneuverGlyph,
   type DistanceUnit,
 } from './guidance';
 
 /**
- * `auto` switches between `day` and `night` at sunrise and sunset at the user's location.
+ * `auto` follows the system's dark mode, like `<NavigationView>`.
  *
  * @group Components
  */
@@ -48,9 +48,16 @@ export type RNNavigationViewAppearance = 'auto' | 'day' | 'night';
  *
  * @group Components
  */
-export type RNNavigationViewProps = NavigationViewProps & {
+export type RNNavigationViewProps = Omit<
+  NavigationViewProps,
+  'styleURL' | 'nightStyleURL'
+> & {
   /** Defaults to Mapbox Standard, whose light preset follows `appearance`. With another style it only changes the UI. */
   styleURL?: string;
+  /** Map style while `appearance` is night. Defaults to `styleURL`. */
+  nightStyleURL?: string;
+  /** Colors of the route line and the alternative routes. */
+  routeLineStyle?: RouteLineStyle;
   /**
    * Unit of the distances the view shows, and of voice instructions for a route the view requests through
    * `waypoints`. Defaults to {@link Navigation.getDefaultDistanceUnit}.
@@ -82,6 +89,8 @@ export function RNNavigationView({
   simulate = false,
   mute = false,
   styleURL,
+  nightStyleURL,
+  routeLineStyle,
   distanceUnit: distanceUnitProp,
   appearance = 'auto',
   onRouteProgress,
@@ -92,6 +101,7 @@ export function RNNavigationView({
   testID,
   children,
 }: RNNavigationViewProps) {
+  const colorScheme = useColorScheme();
   const distanceUnit = distanceUnitProp ?? Navigation.getDefaultDistanceUnit();
   const requested = useRequestedRoute(route ? undefined : waypoints, onError, {
     alternatives: true,
@@ -157,11 +167,9 @@ export function RNNavigationView({
   const following = cameraState === 'following';
   const active = progress && !ended;
   const night =
-    appearance === 'night' ||
-    (appearance === 'auto' &&
-      location !== undefined &&
-      isNight(location.latitude, location.longitude, new Date()));
+    appearance === 'night' || (appearance === 'auto' && colorScheme === 'dark');
   const colors = night ? NIGHT : DAY;
+  const mapStyleURL = (night && nightStyleURL) || styleURL;
   const destination = waypoints?.at(-1);
   const destinationName =
     destination && !Array.isArray(destination) ? destination.name : undefined;
@@ -171,18 +179,21 @@ export function RNNavigationView({
       <MapView
         style={StyleSheet.absoluteFill}
         mapViewImpl={NAVIGATION_MAP_VIEW_IMPL}
-        styleURL={styleURL ?? 'mapbox://styles/mapbox/standard'}
+        styleURL={mapStyleURL ?? 'mapbox://styles/mapbox/standard'}
         scaleBarEnabled={false}
         compassEnabled={false}
       >
-        {styleURL ? null : (
+        {mapStyleURL ? null : (
           <StyleImport
             id="basemap"
             existing
             config={{ lightPreset: night ? 'night' : 'day' }}
           />
         )}
-        <NavigationViewport padding={viewportPadding} />
+        <NavigationViewport
+          padding={viewportPadding}
+          routeLineStyle={routeLineStyle}
+        />
         {children}
       </MapView>
 
