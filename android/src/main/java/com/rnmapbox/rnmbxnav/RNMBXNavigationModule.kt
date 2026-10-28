@@ -180,6 +180,22 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
 
   override fun isVoiceMuted(): Boolean = voiceMuted
 
+  override fun setVoiceVolume(volume: Double) {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.voiceVolume = volume.toFloat().coerceIn(0f, 1f) }
+  }
+
+  override fun advanceToNextLeg() {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.advanceToNextLeg() }
+  }
+
+  override fun setAutoAdvanceLegs(enabled: Boolean) {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.autoAdvanceLegs = enabled }
+  }
+
+  override fun setSimulationSpeed(multiplier: Double) {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.simulationSpeed = multiplier }
+  }
+
   override fun isCarPlayConnected(): Boolean = false
 
   override fun getCarMap(): WritableMap = carMapEvent(RNMBXNavigationCarMaps.current)

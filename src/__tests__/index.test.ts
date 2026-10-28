@@ -17,6 +17,10 @@ jest.mock('../specs/NativeRNMBXNavigationModule', () => ({
     onOffRouteChange: jest.fn(() => ({ remove: jest.fn() })),
     setVoiceMuted: jest.fn(),
     isVoiceMuted: jest.fn(() => true),
+    setVoiceVolume: jest.fn(),
+    advanceToNextLeg: jest.fn(),
+    setAutoAdvanceLegs: jest.fn(),
+    setSimulationSpeed: jest.fn(),
   },
 }));
 
@@ -146,5 +150,31 @@ describe('Navigation', () => {
     Navigation.setVoiceMuted(true);
     expect(native.setVoiceMuted).toHaveBeenCalledWith(true);
     expect(Navigation.isVoiceMuted()).toBe(true);
+  });
+
+  it('clamps the voice volume', () => {
+    Navigation.setVoiceVolume(0.5);
+    expect(native.setVoiceVolume).toHaveBeenLastCalledWith(0.5);
+    Navigation.setVoiceVolume(2);
+    expect(native.setVoiceVolume).toHaveBeenLastCalledWith(1);
+    Navigation.setVoiceVolume(-1);
+    expect(native.setVoiceVolume).toHaveBeenLastCalledWith(0);
+    expect(() => Navigation.setVoiceVolume(NaN)).toThrow();
+    expect(native.setVoiceVolume).toHaveBeenCalledTimes(3);
+  });
+
+  it('controls legs', () => {
+    Navigation.setAutoAdvanceLegs(false);
+    expect(native.setAutoAdvanceLegs).toHaveBeenCalledWith(false);
+    Navigation.advanceToNextLeg();
+    expect(native.advanceToNextLeg).toHaveBeenCalled();
+  });
+
+  it('rejects a non-positive simulation speed', () => {
+    Navigation.setSimulationSpeed(4);
+    expect(native.setSimulationSpeed).toHaveBeenCalledWith(4);
+    expect(() => Navigation.setSimulationSpeed(0)).toThrow();
+    expect(() => Navigation.setSimulationSpeed(NaN)).toThrow();
+    expect(native.setSimulationSpeed).toHaveBeenCalledTimes(1);
   });
 });

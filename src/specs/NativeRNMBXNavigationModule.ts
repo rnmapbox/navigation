@@ -170,6 +170,11 @@ export interface Spec extends TurboModule {
   getCameraState(): string;
   setVoiceMuted(muted: boolean): void;
   isVoiceMuted(): boolean;
+  /** 0..1 */
+  setVoiceVolume(volume: number): void;
+  advanceToNextLeg(): void;
+  setAutoAdvanceLegs(enabled: boolean): void;
+  setSimulationSpeed(multiplier: number): void;
   isCarPlayConnected(): boolean;
   getCarMap(): CarMapEvent;
 

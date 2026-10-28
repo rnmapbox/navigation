@@ -102,6 +102,26 @@
   return @([_navigation isVoiceMuted]);
 }
 
+- (void)setVoiceVolume:(double)volume
+{
+  [_navigation setVoiceVolume:volume];
+}
+
+- (void)advanceToNextLeg
+{
+  [_navigation advanceToNextLeg];
+}
+
+- (void)setAutoAdvanceLegs:(BOOL)enabled
+{
+  [_navigation setAutoAdvanceLegs:enabled];
+}
+
+- (void)setSimulationSpeed:(double)multiplier
+{
+  [_navigation setSimulationSpeed:multiplier];
+}
+
 - (NSNumber *)isCarPlayConnected
 {
   return @([_navigation isCarPlayConnected]);

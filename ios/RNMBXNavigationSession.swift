@@ -12,7 +12,11 @@ final class RNMBXNavigationSession {
   static let shared = RNMBXNavigationSession()
 
   @Published private(set) var location: CLLocation?
-  @Published private(set) var routeProgress: RouteProgress?
+  @Published private(set) var routeProgress: RouteProgress? {
+    didSet {
+      if routeProgress?.legIndex != oldValue?.legIndex { updateSimulation() }
+    }
+  }
   /// Routes from the last `requestRoute`, shown on adopted maps until guidance starts or stops.
   @Published var previewRoutes: NavigationRoutes?
   @Published var cameraState: NavigationCameraState = .idle
@@ -25,8 +29,24 @@ final class RNMBXNavigationSession {
   let routeChanges = PassthroughSubject<(NavigationRoutes, String), Never>()
 
   @Published var voiceMuted = false {
-    didSet { applyVoiceMuted() }
+    didSet { applyVoiceSettings() }
   }
+  /// `nil` leaves the SDK's default, the system volume.
+  var voiceVolume: Float? {
+    didSet { applyVoiceSettings() }
+  }
+  var autoAdvanceLegs = true {
+    didSet { updateSimulation() }
+  }
+  var simulationSpeed = 1.0 {
+    didSet { updateSimulation() }
+  }
+  private var simulating = false
+  /// Drives simulated guidance only when the SDK's simulator can't: at a speed other than 1×, whose setter is
+  /// internal, or without auto-advancing, since the SDK's simulator drives on past waypoints.
+  private var simulator: RNMBXNavigationSimulator?
+  private var needsCustomSimulator: Bool { simulationSpeed != 1 || !autoAdvanceLegs }
+  private var simulationUpdatePending = false
 
   @Published private(set) var provider: MapboxNavigationProvider?
   private var subscriptions = Set<AnyCancellable>()
@@ -53,7 +73,10 @@ final class RNMBXNavigationSession {
       )
     }
     let provider = MapboxNavigationProvider(
-      coreConfig: CoreConfig(credentials: NavigationCoreApiConfiguration(accessToken: accessToken))
+      coreConfig: CoreConfig(
+        credentials: NavigationCoreApiConfiguration(accessToken: accessToken),
+        multilegAdvancing: .manually { _ in await MainActor.run { RNMBXNavigationSession.shared.autoAdvanceLegs } }
+      )
     )
     self.provider = provider
     let navigation = provider.mapboxNavigation.navigation()
@@ -119,31 +142,107 @@ final class RNMBXNavigationSession {
   /// Nil if guidance stopped or restarted meanwhile.
   func prepareActiveGuidance(_ route: RNMBXNavigationRoute, simulate: Bool) async throws -> MapboxNavigation? {
     let navigation = try mapboxNavigation()
+    simulating = simulate
     // Without the origin, the new simulation starts from progress matched against the previous simulation's location.
     let origin = route.routes.mainRoute.route.shape?.coordinates.first.map {
       CLLocation(latitude: $0.latitude, longitude: $0.longitude)
     }
-    setLocationSource(simulate ? .simulation(initialLocation: origin) : .live, force: simulate)
+    startSimulation(simulate ? route.routes : nil, from: origin)
     guidanceRoute = route
     // `apply(coreConfig:)` swaps the location client and the speech synthesizer two main actor turns later; guidance
     // started before that is matched against the previous client's location.
     await Task.yield()
     await Task.yield()
-    applyVoiceMuted()
+    applyVoiceSettings()
     return guidanceRoute === route ? navigation : nil
   }
 
   /// Creates the SDK speech player on first use, which then speaks for any guidance.
-  private func applyVoiceMuted() {
+  private func applyVoiceSettings() {
     guard let provider else { return }
     let synthesizer = provider.routeVoiceController.speechSynthesizer
     if synthesizer.muted != voiceMuted {
       synthesizer.muted = voiceMuted
     }
+    let volume: VolumeMode = voiceVolume.map { .override($0) } ?? .system
+    if synthesizer.volume != volume {
+      synthesizer.volume = volume
+    }
+  }
+
+  /// Simulates `routes` from `location`, or uses live locations without `routes`.
+  private func startSimulation(_ routes: NavigationRoutes?, from location: CLLocation?) {
+    simulator?.stop()
+    simulator = nil
+    guard let routes, let provider else {
+      setLocationSource(.live)
+      return
+    }
+    if needsCustomSimulator {
+      let simulator = RNMBXNavigationSimulator(
+        routes: routes,
+        from: location?.coordinate,
+        speedMultiplier: simulationSpeed,
+        routeProgress: provider.mapboxNavigation.navigation().routeProgress.map { $0?.routeProgress }
+          .eraseToAnyPublisher()
+      )
+      self.simulator = simulator
+      setLocationSource(.custom(simulator.locationClient))
+    } else {
+      setLocationSource(.simulation(initialLocation: location), force: true)
+    }
+  }
+
+  /// Switches the running simulation between the SDK's and ours where needed, carrying on from the current location.
+  private func updateSimulation() {
+    guard simulating, guidanceRoute != nil, let routeProgress else { return }
+    if let simulator, needsCustomSimulator {
+      simulator.speedMultiplier = simulationSpeed
+      return
+    }
+    // The SDK's would drive on past the waypoint our simulation waits at; switches once guidance moves on.
+    guard needsCustomSimulator != (simulator != nil), simulator?.isWaiting(onLeg: routeProgress.legIndex) != true else { return }
+    // Switching replaces the speech synthesizer, which cuts off the instruction it's speaking.
+    if let provider, provider.routeVoiceController.speechSynthesizer.isSpeaking {
+      guard !simulationUpdatePending else { return }
+      simulationUpdatePending = true
+      Task {
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        simulationUpdatePending = false
+        updateSimulation()
+      }
+      return
+    }
+    restartSimulation(routeProgress.navigationRoutes, from: location)
+  }
+
+  private func restartSimulation(_ routes: NavigationRoutes, from location: CLLocation?) {
+    startSimulation(routes, from: location)
+    // The new config also replaces the speech synthesizer.
+    Task {
+      await Task.yield()
+      await Task.yield()
+      applyVoiceSettings()
+    }
+  }
+
+  func advanceToNextLeg() {
+    guard guidanceRoute != nil, let provider, let routeProgress, !routeProgress.isFinalLeg else { return }
+    provider.mapboxNavigation.navigation().switchLeg(newLegIndex: routeProgress.legIndex + 1)
+    // Ours follows the leg index itself; the SDK's would drive on along the skipped leg.
+    if simulating, simulator == nil, let start = routeProgress.currentLeg.steps.last?.maneuverLocation {
+      restartSimulation(
+        routeProgress.navigationRoutes,
+        from: CLLocation(latitude: start.latitude, longitude: start.longitude)
+      )
+    }
   }
 
   func stop() {
     provider?.mapboxNavigation.tripSession().setToIdle()
+    simulating = false
+    simulator?.stop()
+    simulator = nil
     guidanceRoute = nil
     previewRoutes = nil
     cameraState = .idle

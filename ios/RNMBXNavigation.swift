@@ -242,6 +242,30 @@ public final class RNMBXNavigation: NSObject {
     stateLock.withLock { _voiceMuted }
   }
 
+  @objc public func setVoiceVolume(_ volume: Double) {
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.voiceVolume = Float(min(max(volume, 0), 1))
+    }
+  }
+
+  @objc public func advanceToNextLeg() {
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.advanceToNextLeg()
+    }
+  }
+
+  @objc public func setAutoAdvanceLegs(_ enabled: Bool) {
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.autoAdvanceLegs = enabled
+    }
+  }
+
+  @objc public func setSimulationSpeed(_ multiplier: Double) {
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.simulationSpeed = multiplier
+    }
+  }
+
   @objc public func carMap() -> [String: Any] {
     stateLock.withLock { _carMap }
   }

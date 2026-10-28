@@ -26,7 +26,7 @@ import {
  * @group Core
  */
 export type StartActiveGuidanceOptions = {
-  /** Drive the route with simulated locations instead of the device's location. */
+  /** Drive the route with simulated locations instead of the device's location; see {@link Navigation.setSimulationSpeed}. */
   simulate?: boolean;
 };
 
@@ -107,6 +107,38 @@ export const Navigation = {
     } catch (error) {
       return Promise.reject(error);
     }
+  },
+
+  /**
+   * Ends the current leg and guides to the next waypoint, e.g. to skip a stop, or after an arrival with
+   * {@link setAutoAdvanceLegs} off. Does nothing on the last leg or without active guidance. Away from the waypoint,
+   * guidance reroutes from where it is; simulated guidance jumps to the start of the new leg and reroutes again.
+   */
+  advanceToNextLeg(): void {
+    NativeNavigation.advanceToNextLeg();
+  },
+
+  /**
+   * Whether guidance moves on to the next leg by itself once it arrives at a waypoint, which is the default. When off,
+   * guidance stays at the waypoint, simulated guidance included, until {@link advanceToNextLeg}; arrivals are still
+   * reported to {@link addArriveListener}. Turning it on while guidance waits at a waypoint doesn't move on; call
+   * {@link advanceToNextLeg}.
+   */
+  setAutoAdvanceLegs(enabled: boolean): void {
+    NativeNavigation.setAutoAdvanceLegs(enabled);
+  },
+
+  /**
+   * Speed of simulated guidance relative to the route's expected speeds, e.g. `2` drives twice as fast; the default
+   * is `1`. Applies to the running and later simulations. Simulated locations keep reporting the route's speed, not
+   * multiplied. Higher speeds can make guidance go off-route at sharp turns and reroute, and on Android the
+   * simulation doesn't follow reroutes. Throws unless `multiplier` is positive.
+   */
+  setSimulationSpeed(multiplier: number): void {
+    if (!(multiplier > 0)) {
+      throw new Error('setSimulationSpeed needs a positive multiplier');
+    }
+    NativeNavigation.setSimulationSpeed(multiplier);
   },
 
   /** Counts of native routes, for leak checks. */
@@ -215,6 +247,18 @@ export const Navigation = {
   /** Whether voice instructions are muted, by {@link setVoiceMuted} or `<NavigationView>`'s mute button. */
   isVoiceMuted(): boolean {
     return NativeNavigation.isVoiceMuted();
+  },
+
+  /**
+   * Volume of the SDK's voice instructions, from 0 to 1, relative to the device's media volume; clamped to that range.
+   * Independent of {@link setVoiceMuted}. On iOS, it doesn't apply to instructions spoken by the system voice, which
+   * the SDK falls back to when the Mapbox voice is unavailable, e.g. offline. Throws if `volume` is `NaN`.
+   */
+  setVoiceVolume(volume: number): void {
+    if (Number.isNaN(volume)) {
+      throw new Error('setVoiceVolume needs a number');
+    }
+    NativeNavigation.setVoiceVolume(Math.min(Math.max(volume, 0), 1));
   },
 
   /**

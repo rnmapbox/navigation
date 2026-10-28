@@ -11,6 +11,7 @@ import com.mapbox.navigation.base.trip.model.RouteLegProgress
 import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.core.MapboxNavigation
 import com.mapbox.navigation.core.MapboxNavigationProvider
+import com.mapbox.navigation.core.arrival.ArrivalController
 import com.mapbox.navigation.core.arrival.ArrivalObserver
 import com.mapbox.navigation.core.directions.session.RoutesExtra
 import com.mapbox.navigation.core.directions.session.RoutesObserver
@@ -62,8 +63,29 @@ object RNMBXNavigationSession {
   var voiceMuted = false
     set(value) {
       field = value
-      applyVoiceMuted()
+      applyVoiceVolume()
     }
+
+  var voiceVolume = 1f
+    set(value) {
+      field = value
+      applyVoiceVolume()
+    }
+
+  var autoAdvanceLegs = true
+
+  var simulationSpeed = 1.0
+    @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
+    set(value) {
+      field = value
+      if (simulating && MapboxNavigationProvider.isCreated()) {
+        MapboxNavigationProvider.retrieve().mapboxReplayer.playbackSpeed(value)
+      }
+    }
+
+  private val arrivalController = object : ArrivalController {
+    override fun navigateNextRouteLeg(routeLegProgress: RouteLegProgress) = autoAdvanceLegs
+  }
 
   private var speechApi: MapboxSpeechApi? = null
   private var voicePlayer: MapboxVoiceInstructionsPlayer? = null
@@ -111,7 +133,11 @@ object RNMBXNavigationSession {
       arrivalObserver?.invoke((routeProgress.currentLegProgress?.legIndex ?: 0) + 1, false)
     }
 
-    override fun onNextRouteLegStart(routeLegProgress: RouteLegProgress) = Unit
+    override fun onNextRouteLegStart(routeLegProgress: RouteLegProgress) {
+      if (!simulating || !MapboxNavigationProvider.isCreated()) return
+      val navigation = MapboxNavigationProvider.retrieve()
+      navigation.getNavigationRoutes().firstOrNull()?.let { replayLeg(navigation, it, routeLegProgress.legIndex + 1) }
+    }
 
     override fun onFinalDestinationArrival(routeProgress: RouteProgress) {
       if (arrivedAtFinalDestination) return
@@ -203,6 +229,7 @@ object RNMBXNavigationSession {
     navigation.registerArrivalObserver(navigationArrivalObserver)
     navigation.registerOffRouteObserver(navigationOffRouteObserver)
     navigation.registerVoiceInstructionsObserver(voiceInstructionsObserver)
+    navigation.setArrivalController(arrivalController)
     startVoice(navigation.navigationOptions.applicationContext, route)
     guidanceRoute = route
     arrivedAtFinalDestination = false
@@ -223,13 +250,28 @@ object RNMBXNavigationSession {
       if (guidanceStart !== start) return@resetTripSession
       navigation.setNavigationRoutes(route.routes)
       if (simulate) {
-        navigation.mapboxReplayer.run {
-          pushEvents(ReplayRouteMapper().mapDirectionsRouteGeometry(route.routes.first().directionsRoute))
-          seekTo(0.0)
-          play()
-        }
+        replayLeg(navigation, route.routes.first(), 0)
       }
     }
+  }
+
+  /** Simulates one leg at a time, so that the simulation waits at a waypoint while guidance does. */
+  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
+  private fun replayLeg(navigation: MapboxNavigation, route: NavigationRoute, legIndex: Int) {
+    val leg = route.directionsRoute.legs()?.getOrNull(legIndex) ?: return
+    navigation.mapboxReplayer.run {
+      stop()
+      clearEvents()
+      pushEvents(ReplayRouteMapper().mapRouteLegGeometry(leg))
+      seekTo(0.0)
+      playbackSpeed(simulationSpeed)
+      play()
+    }
+  }
+
+  fun advanceToNextLeg() {
+    if (guidanceRoute == null || !MapboxNavigationProvider.isCreated()) return
+    MapboxNavigationProvider.retrieve().navigateNextRouteLeg {}
   }
 
   /** Switches guidance to [route] if it's one of its alternatives. */
@@ -258,11 +300,11 @@ object RNMBXNavigationSession {
     val language = route.routes.first().directionsRoute.routeOptions()?.language() ?: Locale.getDefault().toLanguageTag()
     speechApi = MapboxSpeechApi(context, language)
     voicePlayer = MapboxVoiceInstructionsPlayer(context, language)
-    applyVoiceMuted()
+    applyVoiceVolume()
   }
 
-  private fun applyVoiceMuted() {
-    voicePlayer?.volume(SpeechVolume(if (voiceMuted) 0f else 1f))
+  private fun applyVoiceVolume() {
+    voicePlayer?.volume(SpeechVolume(if (voiceMuted) 0f else voiceVolume))
   }
 
   private fun stopVoice() {
