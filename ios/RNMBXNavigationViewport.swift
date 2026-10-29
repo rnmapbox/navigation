@@ -13,6 +13,10 @@ public final class RNMBXNavigationViewport: UIView, RNMBXMapAndMapViewComponent 
     didSet { navigationMapView?.customRouteLineStyle = routeLineStyle }
   }
 
+  @objc public var puck: NSDictionary? {
+    didSet { navigationMapView?.customPuck = puck }
+  }
+
   private weak var navigationMapView: RNMBXNavigationMapView?
 
   @objc public func setRouteLineStyle(
@@ -37,12 +41,14 @@ public final class RNMBXNavigationViewport: UIView, RNMBXMapAndMapViewComponent 
     self.navigationMapView = navigationMapView
     navigationMapView.customViewportPadding = viewportPadding
     navigationMapView.customRouteLineStyle = routeLineStyle
+    navigationMapView.customPuck = puck
   }
 
   public func removeFromMap(_ map: RNMBXMapView, mapView: MapView, reason: RemovalReason) -> Bool {
     if reason != .StyleChange {
       navigationMapView?.customViewportPadding = nil
       navigationMapView?.customRouteLineStyle = RNMBXRouteLineStyle()
+      navigationMapView?.customPuck = nil
       navigationMapView = nil
     }
     return true

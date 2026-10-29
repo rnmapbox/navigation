@@ -19,6 +19,8 @@ export interface NativeProps extends ViewProps {
   routeLineCasingColor?: ColorValue;
   routeLineAlternativeColor?: ColorValue;
   routeLineTraveledColor?: ColorValue;
+  /** `NavigationPuck` with `model.uri` resolved to a URL. */
+  puck?: CodegenTypes.UnsafeMixed;
 }
 
 export default codegenNativeComponent<NativeProps>(

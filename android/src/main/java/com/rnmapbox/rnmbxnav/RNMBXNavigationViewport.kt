@@ -1,7 +1,9 @@
 package com.rnmapbox.rnmbxnav
 
 import android.content.Context
+import com.facebook.react.bridge.Dynamic
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.ReadableType
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.uimanager.PixelUtil
 import com.facebook.react.uimanager.ThemedReactContext
@@ -25,6 +27,12 @@ class RNMBXNavigationViewport(context: Context) : AbstractMapFeature(context) {
       binding?.setViewportPadding(value)
     }
 
+  var puck: Map<String, Any?>? = null
+    set(value) {
+      field = value
+      binding?.setPuck(value)
+    }
+
   /** Applied by [applyRouteLineStyle], once per React update. */
   var routeLineStyle = RNMBXRouteLineStyle()
 
@@ -40,6 +48,7 @@ class RNMBXNavigationViewport(context: Context) : AbstractMapFeature(context) {
     }
     binding?.setViewportPadding(viewportPadding)
     binding?.setRouteLineStyle(routeLineStyle)
+    binding?.setPuck(puck)
   }
 
   override fun removeFromMap(mapView: RNMBXMapView, reason: RemovalReason): Boolean {
@@ -47,6 +56,7 @@ class RNMBXNavigationViewport(context: Context) : AbstractMapFeature(context) {
     if (reason == RemovalReason.STYLE_CHANGE) return false
     binding?.setViewportPadding(null)
     binding?.setRouteLineStyle(RNMBXRouteLineStyle())
+    binding?.setPuck(null)
     binding = null
     return super.removeFromMap(mapView, reason)
   }
@@ -78,6 +88,10 @@ class RNMBXNavigationViewportManager :
         PixelUtil.toPixelFromDIP(it.getDouble("right")).toDouble()
       )
     }
+  }
+
+  override fun setPuck(view: RNMBXNavigationViewport, value: Dynamic) {
+    view.puck = if (value.type == ReadableType.Map) value.asMap()?.toHashMap() else null
   }
 
   override fun onAfterUpdateTransaction(view: RNMBXNavigationViewport) {
