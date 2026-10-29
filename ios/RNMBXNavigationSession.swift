@@ -174,6 +174,7 @@ final class RNMBXNavigationSession {
   }
 
   private var isSimulating: Bool {
+    if simulator != nil { return true }
     if case .simulation = provider?.coreConfig.locationSource { return true }
     return false
   }
@@ -217,16 +218,22 @@ final class RNMBXNavigationSession {
         )
       }
     }
+    let source: LocationSource?
+    if !keepSimulation {
+      source = simulatedLocation.map { .simulation(initialLocation: $0) } ?? .live
+    } else if simulator != nil {
+      // Ours would drive on along the route; the SDK's keeps reporting its last location once it has no route.
+      source = .simulation(initialLocation: location)
+    } else {
+      source = nil
+    }
     if guiding {
       endGuidance()
     }
     freeDriveRequested = true
     tripGeneration += 1
     let generation = tripGeneration
-    // The simulated location manager keeps reporting its last location once it has no route.
-    if !keepSimulation,
-       setLocationSource(simulatedLocation.map { .simulation(initialLocation: $0) } ?? .live, force: simulatedLocation != nil)
-    {
+    if let source, setLocationSource(source, force: simulatedLocation != nil || keepSimulation) {
       // See `prepareActiveGuidance`.
       await Task.yield()
       await Task.yield()
