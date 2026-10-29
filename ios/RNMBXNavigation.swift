@@ -266,6 +266,12 @@ public final class RNMBXNavigation: NSObject {
     }
   }
 
+  @objc public func setKeepScreenOn(_ keepScreenOn: Bool) {
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.keepScreenOn = keepScreenOn
+    }
+  }
+
   @objc public func carMap() -> [String: Any] {
     stateLock.withLock { _carMap }
   }

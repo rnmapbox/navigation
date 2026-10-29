@@ -175,6 +175,7 @@ export interface Spec extends TurboModule {
   advanceToNextLeg(): void;
   setAutoAdvanceLegs(enabled: boolean): void;
   setSimulationSpeed(multiplier: number): void;
+  setKeepScreenOn(keepScreenOn: boolean): void;
   isCarPlayConnected(): boolean;
   getCarMap(): CarMapEvent;
 

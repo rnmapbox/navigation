@@ -262,6 +262,14 @@ export const Navigation = {
   },
 
   /**
+   * Whether active guidance, `<NavigationView>`'s included, keeps the screen on. On by default. When guidance stops, the
+   * app's own idle timer or keep screen on setting is restored. Turn it off if the app manages that itself.
+   */
+  setKeepScreenOn(keepScreenOn: boolean): void {
+    NativeNavigation.setKeepScreenOn(keepScreenOn);
+  },
+
+  /**
    * Whether a CarPlay screen shows the navigation session; see the `carPlay` option of the Expo config plugin.
    * Always `false` on Android.
    */

@@ -109,6 +109,8 @@ public final class RNMBXNavigationView: UIView {
     )
     let controller = RNMBXNavigationViewController(navigationRoutes: route.routes, navigationOptions: options)
     controller.delegate = self
+    // The session keeps the screen awake; the controller would reset the idle timer to `false` when it disappears.
+    controller.shouldManageApplicationIdleTimer = false
     parent.addChild(controller)
     controller.view.frame = bounds
     addSubview(controller.view)
