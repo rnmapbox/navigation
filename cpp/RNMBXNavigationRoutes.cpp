@@ -57,6 +57,42 @@ RouteRequest parseRequest(jsi::Runtime &runtime, const jsi::Value &value)
   return request;
 }
 
+std::vector<double> numbers(jsi::Runtime &runtime, const jsi::Object &object, const char *name)
+{
+  std::vector<double> result;
+  auto value = object.getProperty(runtime, name);
+  if (!value.isObject()) {
+    return result;
+  }
+  auto array = value.asObject(runtime).asArray(runtime);
+  for (size_t i = 0; i < array.size(runtime); i++) {
+    result.push_back(array.getValueAtIndex(runtime, i).asNumber());
+  }
+  return result;
+}
+
+MatchRequest parseMatchRequest(jsi::Runtime &runtime, const jsi::Value &value)
+{
+  auto options = value.asObject(runtime);
+  MatchRequest request;
+  auto coordinates = options.getPropertyAsObject(runtime, "coordinates").asArray(runtime);
+  for (size_t i = 0; i < coordinates.size(runtime); i++) {
+    auto position = coordinates.getValueAtIndex(runtime, i).asObject(runtime).asArray(runtime);
+    request.coordinates.push_back(position.getValueAtIndex(runtime, 0).asNumber());
+    request.coordinates.push_back(position.getValueAtIndex(runtime, 1).asNumber());
+  }
+  if (auto profile = optionalString(runtime, options, "profile")) {
+    request.profile = *profile;
+  }
+  for (auto index : numbers(runtime, options, "waypointIndices")) {
+    request.waypointIndices.push_back(static_cast<int>(index));
+  }
+  request.radiuses = numbers(runtime, options, "radiuses");
+  request.language = optionalString(runtime, options, "language");
+  request.units = optionalString(runtime, options, "units");
+  return request;
+}
+
 std::shared_ptr<RouteHostObject> unwrapRoute(jsi::Runtime &runtime, const jsi::Value &value)
 {
   if (value.isObject()) {
@@ -148,6 +184,34 @@ class Bindings : public std::enable_shared_from_this<Bindings> {
             self->routeChangeListener_->call(runtime, event);
           });
     });
+  }
+
+  /// Settles `id` with a `RouteResponse` of the main route first, then the alternatives.
+  std::function<void(std::vector<RouteResult>)> routesResolver(uint64_t id)
+  {
+    return [weak = weak_from_this(), id](std::vector<RouteResult> results) {
+      auto self = weak.lock();
+      if (!self) {
+        return;
+      }
+      self->settle(
+          id,
+          [results = std::move(results)](
+              jsi::Runtime &runtime, const jsi::Function &resolve, const jsi::Function &reject) mutable {
+            if (results.empty()) {
+              reject.call(runtime, makeError(runtime, "no_route", "No route found"));
+              return;
+            }
+            jsi::Array alternatives(runtime, results.size() - 1);
+            for (size_t i = 1; i < results.size(); i++) {
+              alternatives.setValueAtIndex(runtime, i - 1, makeRoute(runtime, std::move(results[i])));
+            }
+            jsi::Object response(runtime);
+            response.setProperty(runtime, "main", makeRoute(runtime, std::move(results[0])));
+            response.setProperty(runtime, "alternatives", alternatives);
+            resolve.call(runtime, response);
+          });
+    };
   }
 
   RejectCallback rejecter(uint64_t id)
@@ -377,32 +441,19 @@ void install(
       [bindings](jsi::Runtime &runtime, const jsi::Value &, const jsi::Value *args, size_t count) -> jsi::Value {
         auto request = parseRequest(runtime, argument(args, count, 0));
         return bindings->makePromise(runtime, [bindings, request = std::move(request)](uint64_t id) {
-          bindings->platform().requestRoutes(
-              request,
-              [weak = std::weak_ptr<Bindings>(bindings), id](std::vector<RouteResult> results) {
-                auto bindings = weak.lock();
-                if (!bindings) {
-                  return;
-                }
-                bindings->settle(
-                    id,
-                    [results = std::move(results)](
-                        jsi::Runtime &runtime, const jsi::Function &resolve, const jsi::Function &reject) mutable {
-                      if (results.empty()) {
-                        reject.call(runtime, makeError(runtime, "no_route", "No route found"));
-                        return;
-                      }
-                      jsi::Array alternatives(runtime, results.size() - 1);
-                      for (size_t i = 1; i < results.size(); i++) {
-                        alternatives.setValueAtIndex(runtime, i - 1, makeRoute(runtime, std::move(results[i])));
-                      }
-                      jsi::Object response(runtime);
-                      response.setProperty(runtime, "main", makeRoute(runtime, std::move(results[0])));
-                      response.setProperty(runtime, "alternatives", alternatives);
-                      resolve.call(runtime, response);
-                    });
-              },
-              bindings->rejecter(id));
+          bindings->platform().requestRoutes(request, bindings->routesResolver(id), bindings->rejecter(id));
+        });
+      });
+
+  setFunction(
+      runtime,
+      routes,
+      "requestMatchedRoutes",
+      1,
+      [bindings](jsi::Runtime &runtime, const jsi::Value &, const jsi::Value *args, size_t count) -> jsi::Value {
+        auto request = parseMatchRequest(runtime, argument(args, count, 0));
+        return bindings->makePromise(runtime, [bindings, request = std::move(request)](uint64_t id) {
+          bindings->platform().requestMatchedRoutes(request, bindings->routesResolver(id), bindings->rejecter(id));
         });
       });
 

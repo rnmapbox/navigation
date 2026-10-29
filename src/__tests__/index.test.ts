@@ -1,4 +1,8 @@
-import Navigation, { type Route } from '../index';
+import Navigation, {
+  type MatchedRouteRequestOptions,
+  type Position,
+  type Route,
+} from '../index';
 import NativeNavigation from '../specs/NativeRNMBXNavigationModule';
 
 jest.mock('@rnmapbox/maps', () => ({ MapView: 'MapView' }));
@@ -21,6 +25,7 @@ jest.mock('../specs/NativeRNMBXNavigationModule', () => ({
     advanceToNextLeg: jest.fn(),
     setAutoAdvanceLegs: jest.fn(),
     setSimulationSpeed: jest.fn(),
+    setRerouteEnabled: jest.fn(),
   },
 }));
 
@@ -30,6 +35,9 @@ const route = { distance: 1000, isReleased: false } as Route;
 
 const bindings = {
   requestRoutes: jest.fn(() =>
+    Promise.resolve({ main: route, alternatives: [] })
+  ),
+  requestMatchedRoutes: jest.fn(() =>
     Promise.resolve({ main: route, alternatives: [] })
   ),
   startActiveGuidance: jest.fn(() => Promise.resolve()),
@@ -72,6 +80,79 @@ describe('Navigation', () => {
     ).rejects.toThrow(/at least an origin and a destination/);
     expect(bindings.requestRoutes).not.toHaveBeenCalled();
   });
+
+  it('defaults the waypoints of a matched route to the first and last coordinate', async () => {
+    const coordinates: Position[] = [
+      [-122.3937, 37.7953],
+      [-122.3999, 37.802],
+      [-122.4096, 37.8078],
+    ];
+    const response = await Navigation.requestMatchedRoutes({ coordinates });
+    expect(bindings.requestMatchedRoutes).toHaveBeenCalledWith({
+      coordinates,
+      waypointIndices: [0, 2],
+    });
+    expect(response.main).toBe(route);
+  });
+
+  it.each([
+    [{ coordinates: [[0, 0]] }, /2 to 100 coordinates, got 1/],
+    [
+      { coordinates: Array.from({ length: 101 }, (): Position => [0, 0]) },
+      /got 101/,
+    ],
+    [
+      {
+        coordinates: [
+          [0, 0],
+          [0, 1],
+          [0, 2],
+        ],
+        waypointIndices: [0, 1],
+      },
+      /waypointIndices/,
+    ],
+    [
+      {
+        coordinates: [
+          [0, 0],
+          [0, 1],
+          [0, 2],
+        ],
+        waypointIndices: [0, 1, 1, 2],
+      },
+      /waypointIndices/,
+    ],
+    [
+      {
+        coordinates: [
+          [0, 0],
+          [0, 1],
+          [0, 2],
+        ],
+        radiuses: [5, 5],
+      },
+      /radiuses/,
+    ],
+    [
+      {
+        coordinates: [
+          [0, 0],
+          [0, 1],
+        ],
+        radiuses: [5, 51],
+      },
+      /radiuses/,
+    ],
+  ] as [MatchedRouteRequestOptions, RegExp][])(
+    'rejects requestMatchedRoutes beyond the Map Matching limits %#',
+    async (options, message) => {
+      await expect(Navigation.requestMatchedRoutes(options)).rejects.toThrow(
+        message
+      );
+      expect(bindings.requestMatchedRoutes).not.toHaveBeenCalled();
+    }
+  );
 
   it('starts guidance along a route without simulation by default', async () => {
     await Navigation.startActiveGuidance(route);
@@ -144,6 +225,11 @@ describe('Navigation', () => {
     expect(bindings.setRouteChangeListener).toHaveBeenCalledTimes(1);
     secondSubscription.remove();
     expect(bindings.setRouteChangeListener).toHaveBeenLastCalledWith(null);
+  });
+
+  it('turns rerouting off', () => {
+    Navigation.setRerouteEnabled(false);
+    expect(native.setRerouteEnabled).toHaveBeenCalledWith(false);
   });
 
   it('mutes voice instructions', () => {

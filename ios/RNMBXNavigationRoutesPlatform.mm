@@ -90,6 +90,36 @@ NSDictionary *toDictionary(const RouteRequest &request)
   return dictionary;
 }
 
+NSArray<NSNumber *> *toArray(const std::vector<double> &values)
+{
+  NSMutableArray *array = [NSMutableArray arrayWithCapacity:values.size()];
+  for (auto value : values) {
+    [array addObject:@(value)];
+  }
+  return array;
+}
+
+NSDictionary *toDictionary(const MatchRequest &request)
+{
+  NSMutableArray *waypointIndices = [NSMutableArray new];
+  for (auto index : request.waypointIndices) {
+    [waypointIndices addObject:@(index)];
+  }
+  NSMutableDictionary *dictionary = [@{
+    @"coordinates" : toArray(request.coordinates),
+    @"profile" : toNSString(request.profile),
+    @"waypointIndices" : waypointIndices,
+    @"radiuses" : toArray(request.radiuses),
+  } mutableCopy];
+  if (request.language) {
+    dictionary[@"language"] = toNSString(*request.language);
+  }
+  if (request.units) {
+    dictionary[@"units"] = toNSString(*request.units);
+  }
+  return dictionary;
+}
+
 class IOSNavigationPlatform : public NavigationPlatform {
  public:
   explicit IOSNavigationPlatform(RNMBXNavigation *navigation) : navigation_(navigation) {}
@@ -106,6 +136,20 @@ class IOSNavigationPlatform : public NavigationPlatform {
             results.push_back(toResult(route));
           }
           resolve(std::move(results));
+        }
+        reject:^(NSString *code, NSString *message) {
+          reject(toString(code), toString(message));
+        }];
+  }
+
+  void requestMatchedRoutes(
+      const MatchRequest &request,
+      std::function<void(std::vector<RouteResult>)> resolve,
+      RejectCallback reject) override
+  {
+    [navigation_ requestMatchedRoutes:toDictionary(request)
+        resolve:^(RNMBXNavigationRoute *route) {
+          resolve({toResult(route)});
         }
         reject:^(NSString *code, NSString *message) {
           reject(toString(code), toString(message));

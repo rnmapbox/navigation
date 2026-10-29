@@ -42,6 +42,7 @@ const route = { isReleased: false, release: jest.fn() } as unknown as Route;
 
 const bindings = {
   requestRoutes: jest.fn(),
+  requestMatchedRoutes: jest.fn(),
   startActiveGuidance: jest.fn(() => Promise.resolve()),
   previewRoute: jest.fn(),
   getRouteId: jest.fn(),

@@ -68,6 +68,18 @@ struct RouteRequest {
   std::optional<std::string> units;
 };
 
+/// Validated in JS, see `matchedRouteRequestError` in src/Route.ts.
+struct MatchRequest {
+  /// Longitude, latitude pairs.
+  std::vector<double> coordinates;
+  std::string profile = "driving-traffic";
+  std::vector<int> waypointIndices;
+  /// One per coordinate, or empty.
+  std::vector<double> radiuses;
+  std::optional<std::string> language;
+  std::optional<std::string> units;
+};
+
 using RejectCallback = std::function<void(const std::string &code, const std::string &message)>;
 
 /// Platform side of the bindings. The callbacks may be called on any thread, and exactly one of them once.
@@ -78,6 +90,12 @@ class NavigationPlatform {
   /// Resolves with the main route first, then the alternatives.
   virtual void requestRoutes(
       const RouteRequest &request,
+      std::function<void(std::vector<RouteResult> routes)> resolve,
+      RejectCallback reject) = 0;
+
+  /// Resolves with one route, or rejects if the coordinates only match in several pieces.
+  virtual void requestMatchedRoutes(
+      const MatchRequest &request,
       std::function<void(std::vector<RouteResult> routes)> resolve,
       RejectCallback reject) = 0;
 

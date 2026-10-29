@@ -22,6 +22,7 @@ function makeRoute(id: number) {
 
 const bindings = {
   requestRoutes: jest.fn(),
+  requestMatchedRoutes: jest.fn(),
   startActiveGuidance: jest.fn(),
   previewRoute: jest.fn(),
   getRouteId: jest.fn((route: Route & { id: number }) => route.id),

@@ -181,6 +181,59 @@ public final class RNMBXNavigation: NSObject {
     }
   }
 
+  /// `request` has the shape of `MatchRequest` in cpp/RNMBXNavigationRoutes.h.
+  @objc public func requestMatchedRoutes(
+    _ request: [String: Any],
+    resolve: @escaping (RNMBXNavigationRoute) -> Void,
+    reject: @escaping (String, String) -> Void
+  ) {
+    let coordinates = (request["coordinates"] as? [NSNumber] ?? []).map(\.doubleValue)
+    let options = NavigationMatchOptions(
+      coordinates: stride(from: 0, to: coordinates.count - 1, by: 2).map {
+        CLLocationCoordinate2D(latitude: coordinates[$0 + 1], longitude: coordinates[$0])
+      },
+      profileIdentifier: ProfileIdentifier(rawValue: "mapbox/\(request["profile"] as? String ?? "driving-traffic")")
+    )
+    let waypointIndices = Set((request["waypointIndices"] as? [NSNumber] ?? []).map(\.intValue))
+    let radiuses = (request["radiuses"] as? [NSNumber] ?? []).map(\.doubleValue)
+    for index in options.waypoints.indices {
+      options.waypoints[index].separatesLegs = waypointIndices.contains(index)
+      if index < radiuses.count {
+        options.waypoints[index].coordinateAccuracy = radiuses[index]
+      }
+    }
+    if let language = request["language"] as? String {
+      options.locale = Locale(identifier: language)
+    }
+    switch request["units"] as? String {
+    case "imperial":
+      options.distanceUnit = .mile
+      options.unitMeasurementSystem = .imperial
+    case "metric":
+      options.distanceUnit = .kilometer
+      options.unitMeasurementSystem = .metric
+    default: break
+    }
+
+    Task { @MainActor in
+      do {
+        let navigation = try RNMBXNavigationSession.shared.mapboxNavigation()
+        let routes = try await navigation.routingProvider().calculateRoutes(options: options).value
+        // The SDK drops the further pieces of a split match, but `waypoints` keeps their tracepoints.
+        if let end = routes.mainRoute.route.shape?.coordinates.last,
+          let lastTracepoint = routes.waypoints.last?.coordinate,
+          end.distance(to: lastTracepoint) > 1
+        {
+          reject("no_single_match", "The coordinates match only as several disconnected pieces")
+          return
+        }
+        resolve(RNMBXNavigationRoute(routes))
+      } catch {
+        reject("route_request_failed", error.localizedDescription)
+      }
+    }
+  }
+
   @objc public func startActiveGuidance(
     _ route: RNMBXNavigationRoute,
     simulate: Bool,
@@ -235,6 +288,12 @@ public final class RNMBXNavigation: NSObject {
     stateLock.withLock { _voiceMuted = muted }
     Task { @MainActor in
       RNMBXNavigationSession.shared.voiceMuted = muted
+    }
+  }
+
+  @objc public func setRerouteEnabled(_ enabled: Bool) {
+    Task { @MainActor in
+      RNMBXNavigationSession.shared.rerouteEnabled = enabled
     }
   }
 

@@ -26,6 +26,7 @@ import type { FeatureCollection } from 'geojson';
 
 import env from '../env.json';
 import MarkersScreen from './MarkersScreen';
+import MatchedRouteScreen from './MatchedRouteScreen';
 import NavigationViewScreen from './NavigationViewScreen';
 import RNNavigationViewScreen from './RNNavigationViewScreen';
 import RouteLifecycleScreen from './RouteLifecycleScreen';
@@ -68,7 +69,12 @@ function formatDuration(seconds: number) {
 
 export default function App() {
   const [screen, setScreen] = useState<
-    'navigation' | 'routes' | 'navigationView' | 'rnNavigationView' | 'markers'
+    | 'navigation'
+    | 'routes'
+    | 'navigationView'
+    | 'rnNavigationView'
+    | 'markers'
+    | 'matched'
   >('navigation');
   switch (screen) {
     case 'navigation':
@@ -78,8 +84,11 @@ export default function App() {
           onOpenNavigationView={() => setScreen('navigationView')}
           onOpenRNNavigationView={() => setScreen('rnNavigationView')}
           onOpenMarkers={() => setScreen('markers')}
+          onOpenMatchedRoute={() => setScreen('matched')}
         />
       );
+    case 'matched':
+      return <MatchedRouteScreen onClose={() => setScreen('navigation')} />;
     case 'routes':
       return <RouteLifecycleScreen onClose={() => setScreen('navigation')} />;
     case 'navigationView':
@@ -113,11 +122,13 @@ function NavigationScreen({
   onOpenNavigationView,
   onOpenRNNavigationView,
   onOpenMarkers,
+  onOpenMatchedRoute,
 }: {
   onOpenRouteLifecycle: () => void;
   onOpenNavigationView: () => void;
   onOpenRNNavigationView: () => void;
   onOpenMarkers: () => void;
+  onOpenMatchedRoute: () => void;
 }) {
   const [route, setRoute] = useState<Route>();
   const [progress, setProgress] = useState<RouteProgressEvent>();
@@ -283,6 +294,11 @@ function NavigationScreen({
               label="Markers"
               onPress={onOpenMarkers}
               testID="open-markers"
+            />
+            <Chip
+              label="Matched route"
+              onPress={onOpenMatchedRoute}
+              testID="open-matched-route"
             />
           </>
         ) : (

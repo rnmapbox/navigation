@@ -15,6 +15,7 @@ export type {
 } from './specs/NativeRNMBXNavigationModule';
 export type {
   LineString,
+  MatchedRouteRequestOptions,
   Position,
   Route,
   RouteChangeEvent,

@@ -90,6 +90,12 @@ object RNMBXNavigationSession {
     override fun navigateNextRouteLeg(routeLegProgress: RouteLegProgress) = autoAdvanceLegs
   }
 
+  var rerouteEnabled = true
+    set(value) {
+      field = value
+      if (MapboxNavigationProvider.isCreated()) MapboxNavigationProvider.retrieve().setRerouteEnabled(value)
+    }
+
   private var speechApi: MapboxSpeechApi? = null
   private var voicePlayer: MapboxVoiceInstructionsPlayer? = null
   private val onSpeechPlayed = MapboxNavigationConsumer<SpeechAnnouncement> { speechApi?.clean(it) }
@@ -232,6 +238,7 @@ object RNMBXNavigationSession {
       return null
     }
     return MapboxNavigationProvider.create(NavigationOptions.Builder(context.applicationContext).build())
+      .apply { setRerouteEnabled(rerouteEnabled) }
   }
 
   /** Throws [SecurityException] without location permission unless simulating. */
