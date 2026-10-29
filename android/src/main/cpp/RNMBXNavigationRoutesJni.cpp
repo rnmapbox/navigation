@@ -97,6 +97,93 @@ jni::alias_ref<JRoute> unwrap(const std::shared_ptr<NativeRoute> &route)
   return static_cast<AndroidNativeRoute *>(route.get())->route;
 }
 
+struct JHashMap : jni::JavaClass<JHashMap> {
+  static constexpr auto kJavaDescriptor = "Ljava/util/HashMap;";
+
+  static jni::local_ref<javaobject> create()
+  {
+    return newInstance();
+  }
+
+  void put(const char *key, jni::alias_ref<jobject> value)
+  {
+    static const auto method = javaClassStatic()->getMethod<jobject(jni::alias_ref<jobject>, jni::alias_ref<jobject>)>("put");
+    method(self(), jni::make_jstring(key), value);
+  }
+};
+
+struct JArrayList : jni::JavaClass<JArrayList> {
+  static constexpr auto kJavaDescriptor = "Ljava/util/ArrayList;";
+
+  static jni::local_ref<javaobject> create()
+  {
+    return newInstance();
+  }
+
+  void add(jni::alias_ref<jobject> value)
+  {
+    static const auto method = javaClassStatic()->getMethod<jboolean(jni::alias_ref<jobject>)>("add");
+    method(self(), value);
+  }
+};
+
+jni::local_ref<JHashMap> toMap(double longitude, double latitude)
+{
+  auto map = JHashMap::create();
+  map->put("longitude", jni::autobox(longitude));
+  map->put("latitude", jni::autobox(latitude));
+  return map;
+}
+
+/// Same keys as the dictionary `ios/RNMBXNavigationRoutesPlatform.mm` builds, read by `RNMBXNavigationModule.requestRoutesFromJS`.
+jni::local_ref<JHashMap> toMap(const RouteRequest &request)
+{
+  auto map = JHashMap::create();
+  auto putString = [&](const char *key, const std::optional<std::string> &value) {
+    if (value) {
+      map->put(key, jni::make_jstring(*value));
+    }
+  };
+  auto putNumber = [&](const char *key, const std::optional<double> &value) {
+    if (value) {
+      map->put(key, jni::autobox(*value));
+    }
+  };
+  auto waypoints = JArrayList::create();
+  for (const auto &waypoint : request.waypoints) {
+    auto item = toMap(waypoint.longitude, waypoint.latitude);
+    if (waypoint.name) {
+      item->put("name", jni::make_jstring(*waypoint.name));
+    }
+    item->put("silent", jni::autobox(static_cast<jboolean>(waypoint.silent)));
+    if (waypoint.approach) {
+      item->put("approach", jni::make_jstring(*waypoint.approach));
+    }
+    waypoints->add(item);
+  }
+  map->put("waypoints", waypoints);
+  map->put("profile", jni::make_jstring(request.profile));
+  map->put("alternatives", jni::autobox(static_cast<jboolean>(request.alternatives)));
+  auto exclude = JArrayList::create();
+  for (const auto &value : request.exclude) {
+    exclude->add(jni::make_jstring(value));
+  }
+  map->put("exclude", exclude);
+  auto excludePoints = JArrayList::create();
+  for (const auto &point : request.excludePoints) {
+    excludePoints->add(toMap(point.longitude, point.latitude));
+  }
+  map->put("excludePoints", excludePoints);
+  putString("language", request.language);
+  putString("units", request.units);
+  putNumber("maxHeight", request.maxHeight);
+  putNumber("maxWidth", request.maxWidth);
+  putNumber("maxWeight", request.maxWeight);
+  putString("departAt", request.departAt);
+  putString("arriveBy", request.arriveBy);
+  return map;
+}
+
 /// Owned by the Kotlin side between the call and its completion through `RNMBXNavigationNative`.
 struct PendingCall {
   std::function<void(std::vector<RouteResult>)> resolveRoutes;
@@ -148,48 +235,9 @@ class AndroidNavigationPlatform : public NavigationPlatform {
       RejectCallback reject) override
   {
     jni::ThreadScope scope;
-    static const auto method = JModule::javaClassStatic()->getMethod<void(
-        jni::alias_ref<jni::JArrayDouble>,
-        jni::alias_ref<jni::JArrayClass<jstring>>,
-        jni::alias_ref<jstring>,
-        jboolean,
-        jni::alias_ref<jni::JArrayClass<jstring>>,
-        jni::alias_ref<jstring>,
-        jni::alias_ref<jstring>,
-        jlong)>("requestRoutesFromJS");
-
-    std::vector<double> flat;
-    auto names = jni::JArrayClass<jstring>::newArray(request.waypoints.size());
-    for (size_t i = 0; i < request.waypoints.size(); i++) {
-      const auto &waypoint = request.waypoints[i];
-      flat.push_back(waypoint.longitude);
-      flat.push_back(waypoint.latitude);
-      if (waypoint.name) {
-        names->setElement(i, jni::make_jstring(*waypoint.name).get());
-      }
-    }
-    auto coordinates = jni::JArrayDouble::newArray(flat.size());
-    coordinates->setRegion(0, flat.size(), flat.data());
-    auto exclude = jni::JArrayClass<jstring>::newArray(request.exclude.size());
-    for (size_t i = 0; i < request.exclude.size(); i++) {
-      exclude->setElement(i, jni::make_jstring(request.exclude[i]).get());
-    }
-    auto optional = [](const std::optional<std::string> &value) -> jni::local_ref<jni::JString> {
-      if (!value) {
-        return nullptr;
-      }
-      return jni::make_jstring(*value);
-    };
-    method(
-        module_,
-        coordinates,
-        names,
-        jni::make_jstring(request.profile),
-        static_cast<jboolean>(request.alternatives),
-        exclude,
-        optional(request.language),
-        optional(request.units),
-        toCallback({std::move(resolve), nullptr, std::move(reject)}));
+    static const auto method =
+        JModule::javaClassStatic()->getMethod<void(jni::alias_ref<JHashMap>, jlong)>("requestRoutesFromJS");
+    method(module_, toMap(request), toCallback({std::move(resolve), nullptr, std::move(reject)}));
   }
 
   void requestMatchedRoutes(

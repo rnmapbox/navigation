@@ -2,6 +2,7 @@ import Navigation, {
   type MatchedRouteRequestOptions,
   type Position,
   type Route,
+  type RouteRequestOptions,
 } from '../index';
 import NativeNavigation from '../specs/NativeRNMBXNavigationModule';
 
@@ -156,6 +157,82 @@ describe('Navigation', () => {
       expect(bindings.requestMatchedRoutes).not.toHaveBeenCalled();
     }
   );
+
+  it('passes waypoint and route options through', async () => {
+    await Navigation.requestRoutes({
+      waypoints: [
+        [-71.0955, 42.3489],
+        { coordinate: [-71.08, 42.354], silent: true },
+        { coordinate: [-71.086, 42.344], name: 'Mass Ave', approach: 'curb' },
+      ],
+      profile: 'driving',
+      exclude: ['toll'],
+      excludePoints: [[-71.080175, 42.354076]],
+      maxHeight: 3.5,
+      maxWidth: 2.5,
+      maxWeight: 7.5,
+      arriveBy: '2026-11-03T18:00',
+    });
+    expect(bindings.requestRoutes).toHaveBeenCalledWith({
+      waypoints: [
+        { longitude: -71.0955, latitude: 42.3489 },
+        { longitude: -71.08, latitude: 42.354, silent: true },
+        {
+          longitude: -71.086,
+          latitude: 42.344,
+          name: 'Mass Ave',
+          approach: 'curb',
+        },
+      ],
+      profile: 'driving',
+      exclude: ['toll'],
+      excludePoints: [[-71.080175, 42.354076]],
+      maxHeight: 3.5,
+      maxWidth: 2.5,
+      maxWeight: 7.5,
+      arriveBy: '2026-11-03T18:00',
+    });
+  });
+
+  it.each([
+    [{ maxHeight: 3 }, 'walking', /maxHeight needs the driving/],
+    [{ excludePoints: [[0, 0]] }, 'cycling', /excludePoints needs the driving/],
+    [{ departAt: '2026-11-03T08:00' }, 'walking', /departAt needs the driving/],
+    [
+      { arriveBy: '2026-11-03T08:00' },
+      undefined,
+      /arriveBy needs the driving profile/,
+    ],
+    [{ maxHeight: 11 }, 'driving', /maxHeight must be between 0 and 10/],
+    [{ maxWeight: -1 }, 'driving', /maxWeight must be between 0 and 100/],
+    [{ maxWidth: Number.NaN }, 'driving', /maxWidth must be between 0 and 10/],
+    [{ departAt: '2026-11-03T08:00:00Z' }, 'driving', /YYYY-MM-DDThh:mm/],
+    [{ excludePoints: Array(51).fill([0, 0]) }, 'driving', /at most 50 points/],
+  ] as const)(
+    'rejects %p with the %s profile',
+    async (options, profile, message) => {
+      const request = Navigation.requestRoutes({
+        waypoints: [
+          [0, 0],
+          [1, 1],
+        ],
+        profile,
+        ...options,
+      } as RouteRequestOptions);
+      await expect(request).rejects.toThrow(message);
+      await expect(request).rejects.toMatchObject({ code: 'invalid_options' });
+      expect(bindings.requestRoutes).not.toHaveBeenCalled();
+    }
+  );
+
+  it('rejects a silent origin or destination', async () => {
+    await expect(
+      Navigation.requestRoutes({
+        waypoints: [[0, 0], { coordinate: [1, 1], silent: true }],
+      })
+    ).rejects.toThrow(/can't be silent/);
+    expect(bindings.requestRoutes).not.toHaveBeenCalled();
+  });
 
   it('starts guidance along a route without simulation by default', async () => {
     await Navigation.startActiveGuidance(route);

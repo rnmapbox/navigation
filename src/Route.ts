@@ -15,11 +15,27 @@ export type Position = [longitude: number, latitude: number];
 export type LineString = { type: 'LineString'; coordinates: Position[] };
 
 /**
- * A coordinate, or a coordinate with the name the navigation UI shows for it, e.g. on arrival.
+ * A coordinate, or a coordinate with options.
  *
  * @group Routes
  */
-export type Waypoint = Position | { coordinate: Position; name?: string };
+export type Waypoint =
+  | Position
+  | {
+      coordinate: Position;
+      /** Shown by the navigation UI, e.g. on arrival. Ignored on silent waypoints. */
+      name?: string;
+      /**
+       * Pass through without stopping: a silent waypoint doesn't end a leg, so there's no arrival at it.
+       * The origin and the destination can't be silent. Defaults to `false`.
+       */
+      silent?: boolean;
+      /**
+       * `curb` arrives on the driving side of the road, e.g. the right in right-hand traffic.
+       * Defaults to `unrestricted`, either side.
+       */
+      approach?: 'unrestricted' | 'curb';
+    };
 
 /**
  * Options of {@link Navigation.requestRoutes}.
@@ -35,6 +51,33 @@ export type RouteRequestOptions = {
   alternatives?: boolean;
   /** Road classes to avoid, e.g. `['toll', 'ferry']`. */
   exclude?: string[];
+  /**
+   * Locations to avoid, at most 50. Each is snapped to the nearest road, and the route avoids that road segment
+   * where it can. `driving` and `driving-traffic` only.
+   */
+  excludePoints?: Position[];
+  /**
+   * Vehicle height in meters, 0 to 10. The route avoids roads with a lower height limit. The Directions API assumes
+   * 1.6 if unset. `driving` and `driving-traffic` only.
+   */
+  maxHeight?: number;
+  /**
+   * Vehicle width in meters, 0 to 10. The route avoids roads with a lower width limit. The Directions API assumes
+   * 1.9 if unset. `driving` and `driving-traffic` only.
+   */
+  maxWidth?: number;
+  /**
+   * Vehicle weight in metric tons, 0 to 100. The route avoids roads with a lower weight limit. The Directions API
+   * assumes 2.5 if unset. `driving` and `driving-traffic` only.
+   */
+  maxWeight?: number;
+  /**
+   * Departure time as `YYYY-MM-DDThh:mm`, in the local time at the origin. The route and its travel time take
+   * predicted traffic and timed restrictions at that time into account. `driving` and `driving-traffic` only.
+   */
+  departAt?: string;
+  /** Desired arrival time as `YYYY-MM-DDThh:mm`, in the local time at the destination. `driving` only. */
+  arriveBy?: string;
   /** Language of instructions, e.g. `en` or `de-DE`. */
   language?: string;
   /** Unit of the distances in voice instructions. */
@@ -169,7 +212,13 @@ export type RouteStats = {
   collected: number;
 };
 
-type NativeWaypoint = { longitude: number; latitude: number; name?: string };
+type NativeWaypoint = {
+  longitude: number;
+  latitude: number;
+  name?: string;
+  silent?: boolean;
+  approach?: 'unrestricted' | 'curb';
+};
 
 type RouteBindings = {
   requestRoutes(
@@ -206,12 +255,66 @@ export function routeBindings(): RouteBindings {
 }
 
 export function toNativeWaypoint(waypoint: Waypoint): NativeWaypoint {
-  const [longitude, latitude] = Array.isArray(waypoint)
-    ? waypoint
-    : waypoint.coordinate;
-  return Array.isArray(waypoint) || waypoint.name === undefined
-    ? { longitude, latitude }
-    : { longitude, latitude, name: waypoint.name };
+  if (Array.isArray(waypoint)) {
+    const [longitude, latitude] = waypoint;
+    return { longitude, latitude };
+  }
+  const { coordinate, ...options } = waypoint;
+  const [longitude, latitude] = coordinate;
+  return { longitude, latitude, ...options };
+}
+
+const DRIVING = ['driving', 'driving-traffic'];
+const DIRECTIONS_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+/** The Directions API ignores some unsupported options, and the iOS SDK drops others, so they fail here instead. */
+export function validateRequest(options: RouteRequestOptions): string | null {
+  const { waypoints } = options;
+  if (waypoints.length < 2) {
+    return 'requestRoutes needs at least an origin and a destination';
+  }
+  const isSilent = (waypoint: Waypoint | undefined) =>
+    !!waypoint && !Array.isArray(waypoint) && waypoint.silent === true;
+  if (isSilent(waypoints[0]) || isSilent(waypoints[waypoints.length - 1])) {
+    return "The origin and the destination can't be silent";
+  }
+  const profile = options.profile ?? 'driving-traffic';
+  const drivingOnly = [
+    'excludePoints',
+    'maxHeight',
+    'maxWidth',
+    'maxWeight',
+    'departAt',
+  ] as const;
+  for (const name of drivingOnly) {
+    if (options[name] !== undefined && !DRIVING.includes(profile)) {
+      return `${name} needs the driving or driving-traffic profile`;
+    }
+  }
+  if (options.arriveBy !== undefined && profile !== 'driving') {
+    return 'arriveBy needs the driving profile';
+  }
+  const ranges = [
+    ['maxHeight', 10],
+    ['maxWidth', 10],
+    ['maxWeight', 100],
+  ] as const;
+  for (const [name, max] of ranges) {
+    const value = options[name];
+    if (value !== undefined && !(value >= 0 && value <= max)) {
+      return `${name} must be between 0 and ${max}`;
+    }
+  }
+  if ((options.excludePoints?.length ?? 0) > 50) {
+    return 'excludePoints can have at most 50 points';
+  }
+  for (const name of ['departAt', 'arriveBy'] as const) {
+    const value = options[name];
+    if (value !== undefined && !DIRECTIONS_TIME.test(value)) {
+      return `${name} must be formatted as YYYY-MM-DDThh:mm`;
+    }
+  }
+  return null;
 }
 
 /** Returns why `options` can't be sent to the Map Matching API, or `undefined` if they can. */

@@ -69,24 +69,44 @@ NSDictionary *toDictionary(const RouteRequest &request)
     if (waypoint.name) {
       dictionary[@"name"] = toNSString(*waypoint.name);
     }
+    dictionary[@"silent"] = @(waypoint.silent);
+    if (waypoint.approach) {
+      dictionary[@"approach"] = toNSString(*waypoint.approach);
+    }
     [waypoints addObject:dictionary];
   }
   NSMutableArray *exclude = [NSMutableArray new];
   for (const auto &value : request.exclude) {
     [exclude addObject:toNSString(value)];
   }
+  NSMutableArray *excludePoints = [NSMutableArray new];
+  for (const auto &point : request.excludePoints) {
+    [excludePoints addObject:@{@"longitude" : @(point.longitude), @"latitude" : @(point.latitude)}];
+  }
   NSMutableDictionary *dictionary = [@{
     @"waypoints" : waypoints,
     @"profile" : toNSString(request.profile),
     @"alternatives" : @(request.alternatives),
     @"exclude" : exclude,
+    @"excludePoints" : excludePoints,
   } mutableCopy];
-  if (request.language) {
-    dictionary[@"language"] = toNSString(*request.language);
-  }
-  if (request.units) {
-    dictionary[@"units"] = toNSString(*request.units);
-  }
+  auto setString = [&](NSString *key, const std::optional<std::string> &value) {
+    if (value) {
+      dictionary[key] = toNSString(*value);
+    }
+  };
+  auto setNumber = [&](NSString *key, const std::optional<double> &value) {
+    if (value) {
+      dictionary[key] = @(*value);
+    }
+  };
+  setString(@"language", request.language);
+  setString(@"units", request.units);
+  setNumber(@"maxHeight", request.maxHeight);
+  setNumber(@"maxWidth", request.maxWidth);
+  setNumber(@"maxWeight", request.maxWeight);
+  setString(@"departAt", request.departAt);
+  setString(@"arriveBy", request.arriveBy);
   return dictionary;
 }
 

@@ -11,6 +11,7 @@ import com.facebook.react.bridge.WritableMap
 import com.facebook.react.turbomodule.core.interfaces.BindingsInstallerHolder
 import com.facebook.react.turbomodule.core.interfaces.TurboModuleWithJSIBindings
 import com.mapbox.api.directions.v5.models.BannerComponents
+import com.mapbox.api.directions.v5.models.Exclude
 import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.common.MapboxOptions
 import com.mapbox.geojson.Point
@@ -96,32 +97,43 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
   @DoNotStrip
   external override fun getBindingsInstaller(): BindingsInstallerHolder
 
-  /** Called by the C++ route bindings; see `RouteRequest` in cpp/RNMBXNavigationRoutes.h. */
+  /** Called by the C++ route bindings; [request] has the shape of `RouteRequest` in cpp/RNMBXNavigationRoutes.h. */
   @DoNotStrip
-  fun requestRoutesFromJS(
-    coordinates: DoubleArray,
-    names: Array<String?>,
-    profile: String,
-    alternatives: Boolean,
-    exclude: Array<String>,
-    language: String?,
-    units: String?,
-    callback: Long
-  ) {
-    val points = (0 until coordinates.size / 2).map { Point.fromLngLat(coordinates[2 * it], coordinates[2 * it + 1]) }
-    if (points.size < 2) {
+  fun requestRoutesFromJS(request: HashMap<String, Any?>, callback: Long) {
+    @Suppress("UNCHECKED_CAST")
+    val waypoints = request["waypoints"] as List<Map<String, Any?>>
+    if (waypoints.size < 2) {
       RNMBXNavigationNative.reject(callback, "invalid_waypoints", "requestRoutes needs at least an origin and a destination")
       return
     }
+    @Suppress("UNCHECKED_CAST")
+    val exclude = request["exclude"] as List<String>
+    @Suppress("UNCHECKED_CAST")
+    val excludePoints = (request["excludePoints"] as List<Map<String, Any?>>).map(::toPoint)
+    // The Directions API takes one name per waypoint that separates legs.
+    val legWaypoints = waypoints.filter { it["silent"] != true }
     val options = RouteOptions.builder()
-      .applyDefaultNavigationOptions(profile)
-      .coordinatesList(points)
-      .alternatives(alternatives)
+      .applyDefaultNavigationOptions(request["profile"] as String)
+      .coordinatesList(waypoints.map(::toPoint))
+      .alternatives(request["alternatives"] as Boolean)
       .apply {
-        if (names.any { it != null }) waypointNamesList(names.map { it ?: "" })
-        if (exclude.isNotEmpty()) excludeList(exclude.toList())
-        language?.let { language(it) }
-        units?.let { voiceUnits(it) }
+        if (legWaypoints.size < waypoints.size) {
+          waypointIndicesList(waypoints.indices.filter { waypoints[it]["silent"] != true })
+        }
+        if (legWaypoints.any { it["name"] != null }) waypointNamesList(legWaypoints.map { it["name"] as String? ?: "" })
+        if (waypoints.any { it["approach"] != null }) {
+          approachesList(waypoints.map { it["approach"] as String? ?: "unrestricted" })
+        }
+        if (exclude.isNotEmpty() || excludePoints.isNotEmpty()) {
+          excludeObject(Exclude.builder().criteria(exclude.ifEmpty { null }).points(excludePoints.ifEmpty { null }).build())
+        }
+        (request["language"] as String?)?.let { language(it) }
+        (request["units"] as String?)?.let { voiceUnits(it) }
+        (request["maxHeight"] as Double?)?.let { maxHeight(it) }
+        (request["maxWidth"] as Double?)?.let { maxWidth(it) }
+        (request["maxWeight"] as Double?)?.let { maxWeight(it) }
+        (request["departAt"] as String?)?.let { departAt(it) }
+        (request["arriveBy"] as String?)?.let { arriveBy(it) }
       }
       .build()
 
@@ -221,6 +233,9 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
       )
     }
   }
+
+  private fun toPoint(coordinate: Map<String, Any?>): Point =
+    Point.fromLngLat(coordinate["longitude"] as Double, coordinate["latitude"] as Double)
 
   @DoNotStrip
   fun startActiveGuidanceFromJS(route: RNMBXNavigationRoute, simulate: Boolean, callback: Long) {
