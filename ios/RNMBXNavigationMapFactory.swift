@@ -39,7 +39,8 @@ public final class RNMBXNavigationMapFactory: NSObject {
     let session = RNMBXNavigationSession.shared
     let navigationMapView = RNMBXNavigationMapView(
       location: session.$location.compactMap { $0 }.eraseToAnyPublisher(),
-      routeProgress: session.$routeProgress.eraseToAnyPublisher()
+      // Starting free drive publishes a nil progress again, which would remove a preview route.
+      routeProgress: session.$routeProgress.removeDuplicates { $0 == nil && $1 == nil }.eraseToAnyPublisher()
     )
     navigationMapView.frame = parent.bounds
     navigationMapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]

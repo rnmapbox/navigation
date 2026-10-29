@@ -22,6 +22,11 @@ final class RNMBXNavigationSession {
   @Published var previewRoutes: NavigationRoutes?
   @Published var cameraState: NavigationCameraState = .idle
   @Published private(set) var offRoute = false
+  @Published private(set) var tripState: Session.State = .idle
+  /// Free drive started by the app rather than by CarPlay, until navigation stops to idle.
+  private(set) var freeDriveRequested = false
+  /// Guidance started from free drive, which a navigation view returns to.
+  private var freeDriveBeforeGuidance = false
   /// Fires when navigation stops, so adopted maps can reset their camera.
   let stopped = PassthroughSubject<Void, Never>()
   let mapMatching = PassthroughSubject<MapMatchingState, Never>()
@@ -62,6 +67,8 @@ final class RNMBXNavigationSession {
 
   /// The app's own `isIdleTimerDisabled`, restored when guidance stops.
   private var appIdleTimerDisabled: Bool?
+  /// Bumped whenever the trip starts or stops, so a start that awaits can tell it was superseded.
+  private var tripGeneration = 0
 
   var accessToken: String? {
     didSet {
@@ -141,6 +148,11 @@ final class RNMBXNavigationSession {
       }
       .store(in: &subscriptions)
     provider.mapboxNavigation.tripSession().session
+      .map(\.state)
+      .removeDuplicates()
+      .sink { [weak self] in self?.tripState = $0 }
+      .store(in: &subscriptions)
+    provider.mapboxNavigation.tripSession().session
       .map { session in
         if case .activeGuidance(.offRoute) = session.state { return true }
         return false
@@ -152,11 +164,19 @@ final class RNMBXNavigationSession {
   }
 
   /// Applying the config replaces the location client and the speech synthesizer on a later main actor turn.
-  func setLocationSource(_ source: LocationSource, force: Bool = false) {
-    guard let provider, force || provider.coreConfig.locationSource != source else { return }
+  @discardableResult
+  func setLocationSource(_ source: LocationSource, force: Bool = false) -> Bool {
+    guard let provider, force || provider.coreConfig.locationSource != source else { return false }
     var config = provider.coreConfig
     config.locationSource = source
     provider.apply(coreConfig: config)
+    return true
+  }
+
+  private var isSimulating: Bool {
+    if simulator != nil { return true }
+    if case .simulation = provider?.coreConfig.locationSource { return true }
+    return false
   }
 
   /// Nil if guidance stopped or restarted meanwhile.
@@ -167,14 +187,79 @@ final class RNMBXNavigationSession {
     let origin = route.routes.mainRoute.route.shape?.coordinates.first.map {
       CLLocation(latitude: $0.latitude, longitude: $0.longitude)
     }
+    if guidanceRoute == nil, !isGuiding {
+      freeDriveBeforeGuidance = isFreeDrive
+    }
     startSimulation(simulate ? route.routes : nil, from: origin)
     guidanceRoute = route
+    tripGeneration += 1
     // `apply(coreConfig:)` swaps the location client and the speech synthesizer two main actor turns later; guidance
     // started before that is matched against the previous client's location.
     await Task.yield()
     await Task.yield()
     applyVoiceSettings()
     return guidanceRoute === route ? navigation : nil
+  }
+
+  /// Matches locations to the road without a route, ending any guidance. `simulatedLocation` replaces the device's
+  /// location; after simulated guidance, the simulated device stays where it is. Throws without location permission
+  /// unless simulating.
+  func startFreeDrive(simulatedLocation: CLLocation?) async throws {
+    let navigation = try mapboxNavigation()
+    let guiding = guidanceRoute != nil || isGuiding
+    let keepSimulation = simulatedLocation == nil && guiding && isSimulating
+    if simulatedLocation == nil, !keepSimulation {
+      let status = CLLocationManager().authorizationStatus
+      guard status == .authorizedWhenInUse || status == .authorizedAlways else {
+        throw NSError(
+          domain: "RNMBXNavigation",
+          code: 2,
+          userInfo: [NSLocalizedDescriptionKey: "Navigation needs the location permission: request it first, or simulate"]
+        )
+      }
+    }
+    let source: LocationSource?
+    if !keepSimulation {
+      source = simulatedLocation.map { .simulation(initialLocation: $0) } ?? .live
+    } else if simulator != nil {
+      // Ours would drive on along the route; the SDK's keeps reporting its last location once it has no route.
+      source = .simulation(initialLocation: location)
+    } else {
+      source = nil
+    }
+    if guiding {
+      endGuidance()
+    }
+    freeDriveRequested = true
+    tripGeneration += 1
+    let generation = tripGeneration
+    if let source, setLocationSource(source, force: simulatedLocation != nil || keepSimulation) {
+      // See `prepareActiveGuidance`.
+      await Task.yield()
+      await Task.yield()
+      guard generation == tripGeneration else { return }
+    }
+    navigation.tripSession().startFreeDrive()
+  }
+
+  /// Ends guidance started by a navigation view, back to free drive if guidance started from free drive. Leaves a
+  /// session that already left guidance alone.
+  func stopViewGuidance() async {
+    guard guidanceRoute != nil || isGuiding else { return }
+    if freeDriveBeforeGuidance, (try? await startFreeDrive(simulatedLocation: nil)) != nil {
+      return
+    }
+    stop()
+  }
+
+  private var isGuiding: Bool {
+    if case .activeGuidance = provider?.mapboxNavigation.tripSession().currentSession.state { return true }
+    return false
+  }
+
+  private var isFreeDrive: Bool {
+    if case .freeDrive = provider?.mapboxNavigation.tripSession().currentSession.state { return true }
+    return false
   }
 
   /// Creates the SDK speech player on first use, which then speaks for any guidance.
@@ -271,14 +356,21 @@ final class RNMBXNavigationSession {
   }
 
   func stop() {
+    tripGeneration += 1
     provider?.mapboxNavigation.tripSession().setToIdle()
     simulating = false
+    location = nil
+    freeDriveRequested = false
+    freeDriveBeforeGuidance = false
+    endGuidance()
+  }
+
+  private func endGuidance() {
     simulator?.stop()
     simulator = nil
     guidanceRoute = nil
     previewRoutes = nil
     cameraState = .idle
-    location = nil
     stopped.send()
   }
 }

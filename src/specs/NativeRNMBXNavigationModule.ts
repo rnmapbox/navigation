@@ -132,6 +132,11 @@ export type VoiceInstructionEvent = {
   distanceAlongStep: number;
 };
 
+export type SessionStateEvent = {
+  /** One of "idle", "freeDrive", "activeGuidance". */
+  state: string;
+};
+
 export type CameraStateEvent = {
   /** One of "following", "overview", "idle". */
   state: string;
@@ -163,7 +168,18 @@ export interface Spec extends TurboModule {
   getSdkVersion(): string;
   /** "metric" or "imperial". */
   getDefaultDistanceUnit(): string;
+  /** Without `simulate`, rejects with code "location_permission" unless the app has location permission. */
+  startFreeDrive(
+    simulate: boolean,
+    longitude: number,
+    latitude: number,
+    foregroundService: boolean
+  ): Promise<void>;
   stopNavigation(): void;
+  /** Ends guidance started by a navigation view; back to free drive if guidance started from free drive. */
+  stopViewGuidance(): void;
+  /** One of "idle", "freeDrive", "activeGuidance". */
+  getSessionState(): string;
   /** One of "following", "overview", "idle". */
   setCameraState(state: string): void;
   /** One of "following", "overview", "idle". */
@@ -182,6 +198,7 @@ export interface Spec extends TurboModule {
 
   readonly onRouteProgress: CodegenTypes.EventEmitter<RouteProgressEvent>;
   readonly onCameraStateChange: CodegenTypes.EventEmitter<CameraStateEvent>;
+  readonly onSessionStateChange: CodegenTypes.EventEmitter<SessionStateEvent>;
   readonly onLocationChange: CodegenTypes.EventEmitter<LocationEvent>;
   readonly onArrive: CodegenTypes.EventEmitter<ArriveEvent>;
   readonly onOffRouteChange: CodegenTypes.EventEmitter<OffRouteEvent>;

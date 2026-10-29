@@ -1,11 +1,16 @@
 package com.rnmapbox.rnmbxnav
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import com.mapbox.api.directions.v5.models.VoiceInstructions
 import com.mapbox.common.MapboxOptions
 import com.mapbox.common.location.Location
+import com.mapbox.geojson.Point
 import com.mapbox.navigation.base.ExperimentalPreviewMapboxNavigationAPI
 import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.route.NavigationRoute
@@ -17,12 +22,14 @@ import com.mapbox.navigation.core.arrival.ArrivalController
 import com.mapbox.navigation.core.arrival.ArrivalObserver
 import com.mapbox.navigation.core.directions.session.RoutesExtra
 import com.mapbox.navigation.core.directions.session.RoutesObserver
+import com.mapbox.navigation.core.replay.history.ReplayEventsObserver
 import com.mapbox.navigation.core.replay.route.ReplayRouteMapper
 import com.mapbox.navigation.core.routealternatives.AlternativeRouteMetadata
 import com.mapbox.navigation.core.trip.session.LocationMatcherResult
 import com.mapbox.navigation.core.trip.session.LocationObserver
 import com.mapbox.navigation.core.trip.session.OffRouteObserver
 import com.mapbox.navigation.core.trip.session.RouteProgressObserver
+import com.mapbox.navigation.core.trip.session.TripSessionState
 import com.mapbox.navigation.core.trip.session.VoiceInstructionsObserver
 import com.mapbox.navigation.ui.base.util.MapboxNavigationConsumer
 import com.mapbox.navigation.voice.api.MapboxSpeechApi
@@ -36,6 +43,12 @@ enum class RNMBXNavigationCameraState(val jsName: String) {
   FOLLOWING("following"),
   OVERVIEW("overview"),
   IDLE("idle"),
+}
+
+enum class RNMBXNavigationSessionState(val jsName: String) {
+  IDLE("idle"),
+  FREE_DRIVE("freeDrive"),
+  ACTIVE_GUIDANCE("activeGuidance"),
 }
 
 /**
@@ -55,6 +68,15 @@ object RNMBXNavigationSession {
 
   /** Called on every camera state change, from JS, guidance or a map gesture. */
   var cameraStateObserver: ((RNMBXNavigationCameraState) -> Unit)? = null
+
+  var sessionStateObserver: ((RNMBXNavigationSessionState) -> Unit)? = null
+
+  /**
+   * Set here rather than taken from `NavigationSessionStateObserver`, which passes through free drive while guidance
+   * starts and stops. Read on the JS thread.
+   */
+  @Volatile var sessionState = RNMBXNavigationSessionState.IDLE
+    private set
 
   var routeProgressObserver: ((RouteProgress) -> Unit)? = null
   var locationMatcherObserver: ((LocationMatcherResult) -> Unit)? = null
@@ -102,8 +124,12 @@ object RNMBXNavigationSession {
 
   /** Kept until navigation stops, whether or not JS releases its `Route`. */
   private var guidanceRoute: RNMBXNavigationRoute? = null
-  private var guidanceStart: Any? = null
+  private var tripStart: Any? = null
   private var simulating = false
+  private var tripForegroundService = false
+  /** Guidance started from free drive, which a navigation view returns to. */
+  private var freeDriveBeforeGuidance = false
+  private var freeDriveForegroundService = false
 
   var keepScreenOn = true
     set(value) {
@@ -117,6 +143,23 @@ object RNMBXNavigationSession {
   // The view's flag, not the window's, so apps setting `FLAG_KEEP_SCREEN_ON` themselves keep it.
   private var screenOnView: WeakReference<View>? = null
   private var viewKeptScreenOn = false
+
+  /** Simulated free drive replays this location every second. */
+  private var parkedLocation: Point? = null
+  private val parkHandler = Handler(Looper.getMainLooper())
+  // `pushEvents` restarts the replayer clock at the pushed event, which then plays at once: wait before pushing.
+  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
+  private val parkedReplayObserver = ReplayEventsObserver { events ->
+    val last = events.lastOrNull() ?: return@ReplayEventsObserver
+    parkHandler.removeCallbacksAndMessages(null)
+    parkHandler.postDelayed({
+      val point = parkedLocation ?: return@postDelayed
+      MapboxNavigationProvider.retrieve().mapboxReplayer.run {
+        clearPlayedEvents()
+        pushEvents(listOf(ReplayRouteMapper.mapToUpdateLocation(last.eventTimestamp + 1.0, point)))
+      }
+    }, 1000)
+  }
 
   /** Set by Android Auto's auto drive, which Play review uses: guidance then simulates. */
   var autoDrive = false
@@ -136,6 +179,8 @@ object RNMBXNavigationSession {
   }
 
   private val routesObserver = RoutesObserver { result ->
+    // Registration replays the last routes, which in free drive would clear a preview route.
+    if (guidanceRoute == null) return@RoutesObserver
     val previousMainRouteId = routes.firstOrNull()?.id
     updateRoutes(result.navigationRoutes, preview = false)
     val reason = when (result.reason) {
@@ -245,33 +290,22 @@ object RNMBXNavigationSession {
   @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
   fun startActiveGuidance(navigation: MapboxNavigation, route: RNMBXNavigationRoute, simulateRequested: Boolean) {
     val simulate = simulateRequested || autoDrive
-    unregisterObservers(navigation)
-    navigation.registerRouteProgressObserver(navigationRouteProgressObserver)
-    navigation.registerLocationObserver(locationObserver)
-    navigation.registerRoutesObserver(routesObserver)
-    navigation.registerArrivalObserver(navigationArrivalObserver)
-    navigation.registerOffRouteObserver(navigationOffRouteObserver)
-    navigation.registerVoiceInstructionsObserver(voiceInstructionsObserver)
+    startTrip(navigation, simulate, foregroundService = true)
     navigation.setArrivalController(arrivalController)
+    if (sessionState != RNMBXNavigationSessionState.ACTIVE_GUIDANCE) {
+      freeDriveBeforeGuidance = sessionState == RNMBXNavigationSessionState.FREE_DRIVE
+    }
     startVoice(navigation.navigationOptions.applicationContext, route)
     guidanceRoute = route
     updateKeepScreenOn()
     arrivedAtFinalDestination = false
     val start = Any()
-    guidanceStart = start
-    if (simulate) {
-      // No foreground service: it needs runtime location permission, which simulation doesn't.
-      navigation.startReplayTripSession(withForegroundService = false)
-      navigation.mapboxReplayer.stop()
-      navigation.mapboxReplayer.clearEvents()
-    } else {
-      navigation.startTripSession()
-    }
-    simulating = simulate
+    tripStart = start
+    updateSessionState(RNMBXNavigationSessionState.ACTIVE_GUIDANCE)
     updateCameraState(RNMBXNavigationCameraState.FOLLOWING)
     // Otherwise the navigator first matches the new route against the previous session's extrapolated location.
     navigation.resetTripSession {
-      if (guidanceStart !== start) return@resetTripSession
+      if (tripStart !== start) return@resetTripSession
       navigation.setNavigationRoutes(route.routes)
       if (simulate) {
         replayLeg(navigation, route.routes.first(), 0)
@@ -293,9 +327,101 @@ object RNMBXNavigationSession {
     }
   }
 
+  /**
+   * Matches locations to the road without a route, ending any guidance. With [simulatedLocation], replays that
+   * location instead of the device's; after simulated guidance, replays the last location. Throws
+   * [SecurityException] without location permission unless simulating.
+   */
+  fun startFreeDrive(navigation: MapboxNavigation, simulatedLocation: Point?, foregroundService: Boolean) {
+    val guiding = guidanceRoute != null
+    val simulate = simulatedLocation != null || (guiding && simulating)
+    if (!simulate) requireLocationPermission(navigation.navigationOptions.applicationContext)
+    val last = location
+    if (guiding) endGuidance(navigation)
+    startTrip(navigation, simulate, foregroundService)
+    freeDriveForegroundService = foregroundService
+    val start = Any()
+    tripStart = start
+    updateSessionState(RNMBXNavigationSessionState.FREE_DRIVE)
+    if (simulatedLocation != null) {
+      navigation.resetTripSession {
+        if (tripStart === start) park(navigation, simulatedLocation)
+      }
+    } else if (simulate) {
+      if (last != null) park(navigation, Point.fromLngLat(last.longitude, last.latitude))
+    } else {
+      // Otherwise the navigator drops live locations older than the last simulated one.
+      navigation.resetTripSession {}
+    }
+  }
+
+  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
+  private fun startTrip(navigation: MapboxNavigation, simulate: Boolean, foregroundService: Boolean) {
+    if (!simulate) requireLocationPermission(navigation.navigationOptions.applicationContext)
+    val withForegroundService = foregroundService && !simulate
+    // The SDK ignores a start while its trip session runs, so switching the location source or the service restarts it.
+    if (navigation.getTripSessionState() == TripSessionState.STARTED &&
+      (simulate != simulating || withForegroundService != tripForegroundService)
+    ) {
+      navigation.stopTripSession()
+    }
+    unpark(navigation)
+    unregisterObservers(navigation)
+    navigation.registerRouteProgressObserver(navigationRouteProgressObserver)
+    navigation.registerLocationObserver(locationObserver)
+    navigation.registerRoutesObserver(routesObserver)
+    navigation.registerArrivalObserver(navigationArrivalObserver)
+    navigation.registerOffRouteObserver(navigationOffRouteObserver)
+    navigation.registerVoiceInstructionsObserver(voiceInstructionsObserver)
+    if (simulate) {
+      // No foreground service: it needs runtime location permission, which simulation doesn't.
+      navigation.startReplayTripSession(withForegroundService = false)
+      navigation.mapboxReplayer.stop()
+      navigation.mapboxReplayer.clearEvents()
+    } else {
+      if (simulating) {
+        navigation.mapboxReplayer.stop()
+        navigation.mapboxReplayer.clearEvents()
+      }
+      navigation.startTripSession(withForegroundService)
+    }
+    simulating = simulate
+    tripForegroundService = withForegroundService
+  }
+
+  private fun requireLocationPermission(context: Context) {
+    val granted = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION).any {
+      context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+    }
+    if (!granted) {
+      throw SecurityException("Navigation needs the location permission: request it first, or simulate")
+    }
+  }
+
+  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
+  private fun park(navigation: MapboxNavigation, point: Point) {
+    parkedLocation = point
+    navigation.mapboxReplayer.run {
+      stop()
+      clearEvents()
+      registerObserver(parkedReplayObserver)
+      pushEvents(listOf(ReplayRouteMapper.mapToUpdateLocation(0.0, point)))
+      seekTo(0.0)
+      play()
+    }
+  }
+
   fun advanceToNextLeg() {
     if (guidanceRoute == null || !MapboxNavigationProvider.isCreated()) return
     MapboxNavigationProvider.retrieve().navigateNextRouteLeg {}
+  }
+
+  @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
+  private fun unpark(navigation: MapboxNavigation) {
+    if (parkedLocation == null) return
+    parkedLocation = null
+    parkHandler.removeCallbacksAndMessages(null)
+    navigation.mapboxReplayer.unregisterObserver(parkedReplayObserver)
   }
 
   /** Switches guidance to [route] if it's one of its alternatives. */
@@ -353,14 +479,11 @@ object RNMBXNavigationSession {
 
   @OptIn(ExperimentalPreviewMapboxNavigationAPI::class)
   fun stopNavigation() {
-    guidanceRoute = null
-    updateKeepScreenOn()
-    guidanceStart = null
-    offRoute = false
-    stopVoice()
+    clearGuidance()
     if (MapboxNavigationProvider.isCreated()) {
       val navigation = MapboxNavigationProvider.retrieve()
       unregisterObservers(navigation)
+      unpark(navigation)
       if (simulating) {
         navigation.mapboxReplayer.stop()
         navigation.mapboxReplayer.clearEvents()
@@ -369,7 +492,45 @@ object RNMBXNavigationSession {
       navigation.setNavigationRoutes(emptyList())
       navigation.stopTripSession()
     }
-    stop()
+    freeDriveBeforeGuidance = false
+    stop(keepLocation = false)
+    updateSessionState(RNMBXNavigationSessionState.IDLE)
+  }
+
+  /**
+   * Ends guidance started by a navigation view, back to free drive if guidance started from free drive. Leaves a
+   * session that already left guidance alone.
+   */
+  fun stopViewGuidance() {
+    if (sessionState != RNMBXNavigationSessionState.ACTIVE_GUIDANCE) return
+    if (freeDriveBeforeGuidance && MapboxNavigationProvider.isCreated()) {
+      try {
+        startFreeDrive(MapboxNavigationProvider.retrieve(), null, freeDriveForegroundService)
+        return
+      } catch (_: SecurityException) {
+      }
+    }
+    stopNavigation()
+  }
+
+  private fun endGuidance(navigation: MapboxNavigation) {
+    clearGuidance()
+    navigation.setNavigationRoutes(emptyList())
+    stop(keepLocation = true)
+  }
+
+  private fun clearGuidance() {
+    guidanceRoute = null
+    updateKeepScreenOn()
+    tripStart = null
+    offRoute = false
+    stopVoice()
+  }
+
+  private fun updateSessionState(state: RNMBXNavigationSessionState) {
+    if (state == sessionState) return
+    sessionState = state
+    sessionStateObserver?.invoke(state)
   }
 
   private fun unregisterObservers(navigation: MapboxNavigation) {
@@ -381,11 +542,15 @@ object RNMBXNavigationSession {
     navigation.unregisterVoiceInstructionsObserver(voiceInstructionsObserver)
   }
 
-  private fun stop() {
-    location = null
-    keyPoints = emptyList()
+  private fun stop(keepLocation: Boolean) {
+    if (!keepLocation) {
+      location = null
+      keyPoints = emptyList()
+    }
     updateRoutes(emptyList(), preview = false)
     updateCameraState(RNMBXNavigationCameraState.IDLE)
     listeners.toList().forEach { it.onStopped() }
+    // Maps hide the puck when navigation stops; free drive keeps it.
+    if (keepLocation) location?.let { updateLocation(it, keyPoints) }
   }
 }

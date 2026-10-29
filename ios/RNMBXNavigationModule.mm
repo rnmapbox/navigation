@@ -24,6 +24,9 @@
   if (self = [super init]) {
     _navigation = [RNMBXNavigation new];
     __weak RNMBXNavigationModule *weakSelf = self;
+    _navigation.onSessionStateChange = ^(NSDictionary *event) {
+      [weakSelf emitOnSessionStateChange:event];
+    };
     _navigation.onRouteProgress = ^(NSDictionary *event) {
       [weakSelf emitOnRouteProgress:event];
     };
@@ -77,9 +80,37 @@
   return [RNMBXNavigation defaultDistanceUnit];
 }
 
+- (void)startFreeDrive:(BOOL)simulate
+             longitude:(double)longitude
+              latitude:(double)latitude
+     foregroundService:(BOOL)foregroundService
+               resolve:(RCTPromiseResolveBlock)resolve
+                reject:(RCTPromiseRejectBlock)reject
+{
+  [_navigation startFreeDrive:simulate
+      longitude:longitude
+      latitude:latitude
+      resolve:^{
+        resolve(nil);
+      }
+      reject:^(NSString *code, NSString *message) {
+        reject(code, message, nil);
+      }];
+}
+
 - (void)stopNavigation
 {
   [_navigation stopNavigation];
+}
+
+- (void)stopViewGuidance
+{
+  [_navigation stopViewGuidance];
+}
+
+- (NSString *)getSessionState
+{
+  return [_navigation sessionState];
 }
 
 - (void)setCameraState:(NSString *)state

@@ -3,6 +3,7 @@ package com.rnmapbox.rnmbxnav
 import com.facebook.proguard.annotations.DoNotStrip
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.LifecycleEventListener
+import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableArray
@@ -48,6 +49,9 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = { state ->
         emitOnCameraStateChange(Arguments.createMap().apply { putString("state", state.jsName) })
+      }
+      RNMBXNavigationSession.sessionStateObserver = { state ->
+        emitOnSessionStateChange(Arguments.createMap().apply { putString("state", state.jsName) })
       }
       RNMBXNavigationSession.routeProgressObserver = { progress -> emitOnRouteProgress(routeProgressEvent(progress)) }
       RNMBXNavigationSession.locationMatcherObserver = { result -> emitOnLocationChange(locationEvent(result)) }
@@ -243,9 +247,41 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  override fun startFreeDrive(
+    simulate: Boolean,
+    longitude: Double,
+    latitude: Double,
+    foregroundService: Boolean,
+    promise: Promise,
+  ) {
+    UiThreadUtil.runOnUiThread {
+      val navigation = RNMBXNavigationSession.mapboxNavigation(reactApplicationContext)
+      if (navigation == null) {
+        promise.reject("no_access_token", "Call Navigation.setAccessToken before using navigation")
+        return@runOnUiThread
+      }
+      try {
+        RNMBXNavigationSession.startFreeDrive(
+          navigation,
+          if (simulate) Point.fromLngLat(longitude, latitude) else null,
+          foregroundService,
+        )
+        promise.resolve(null)
+      } catch (e: SecurityException) {
+        promise.reject("location_permission", e.message ?: e.toString(), e)
+      }
+    }
+  }
+
   override fun stopNavigation() {
     UiThreadUtil.runOnUiThread { RNMBXNavigationSession.stopNavigation() }
   }
+
+  override fun stopViewGuidance() {
+    UiThreadUtil.runOnUiThread { RNMBXNavigationSession.stopViewGuidance() }
+  }
+
+  override fun getSessionState(): String = RNMBXNavigationSession.sessionState.jsName
 
   override fun setCameraState(state: String) {
     UiThreadUtil.runOnUiThread {
@@ -301,6 +337,7 @@ class RNMBXNavigationModule(reactContext: ReactApplicationContext) :
     reactApplicationContext.removeLifecycleEventListener(lifecycleListener)
     UiThreadUtil.runOnUiThread {
       RNMBXNavigationSession.cameraStateObserver = null
+      RNMBXNavigationSession.sessionStateObserver = null
       RNMBXNavigationSession.routeProgressObserver = null
       RNMBXNavigationSession.locationMatcherObserver = null
       RNMBXNavigationSession.arrivalObserver = null

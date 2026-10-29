@@ -20,12 +20,12 @@ import {
 import { NavigationViewport, type RouteLineStyle } from './NavigationViewport';
 import { useRequestedRoute, type NavigationViewProps } from './NavigationView';
 import type { Route } from './Route';
-import type {
-  BannerComponent,
-  Lane,
-  LocationEvent,
-  RouteProgressEvent,
-  SpeedLimit,
+import NativeNavigation, {
+  type BannerComponent,
+  type Lane,
+  type LocationEvent,
+  type RouteProgressEvent,
+  type SpeedLimit,
 } from './specs/NativeRNMBXNavigationModule';
 import {
   directionGlyph,
@@ -150,7 +150,6 @@ export function RNNavigationView({
 
   const end = () => {
     setEnded(true);
-    Navigation.stopNavigation();
     onCancel?.();
   };
 
@@ -290,7 +289,10 @@ export function RNNavigationView({
   );
 }
 
-/** Restarts guidance whenever `route` changes, and stops it when the view unmounts. */
+/**
+ * Restarts guidance whenever `route` changes, and stops it when the view unmounts, back to free drive if guidance
+ * started from free drive.
+ */
 function useGuidance(
   route: Route | undefined,
   ended: boolean,
@@ -313,7 +315,7 @@ function useGuidance(
     });
     return () => {
       active = false;
-      Navigation.stopNavigation();
+      NativeNavigation.stopViewGuidance();
     };
   }, [route, ended, props]);
 }

@@ -58,7 +58,7 @@ public final class RNMBXNavigationView: UIView {
     invalidated = true
     guard navigationViewController != nil else { return }
     removeNavigationViewController()
-    RNMBXNavigationSession.shared.stop()
+    Task { await RNMBXNavigationSession.shared.stopViewGuidance() }
   }
 
   /// Loading the view controller inside a React mount transaction overflows the main thread's stack in debug builds.
@@ -223,7 +223,7 @@ extension RNMBXNavigationView: NavigationViewControllerDelegate {
   ) {
     guard canceled else { return }
     removeNavigationViewController()
-    RNMBXNavigationSession.shared.stop()
+    Task { await RNMBXNavigationSession.shared.stopViewGuidance() }
     onCancel?()
   }
 }

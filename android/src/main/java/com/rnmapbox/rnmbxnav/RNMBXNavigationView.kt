@@ -245,7 +245,7 @@ class RNMBXNavigationView(private val context: ThemedReactContext) :
     navigation.unregisterLocationObserver(locationObserver)
     navigation.unregisterArrivalObserver(arrivalObserver)
     maneuverApi.cancel()
-    RNMBXNavigationSession.stopNavigation()
+    RNMBXNavigationSession.stopViewGuidance()
   }
 
   fun destroy() {

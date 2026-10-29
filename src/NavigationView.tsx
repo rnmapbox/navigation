@@ -67,7 +67,8 @@ export type NavigationViewProps = {
  * equivalent built from the Navigation SDK UI components on Android.
  *
  * It uses the app's single navigation session: mounting it, or giving it a new route, starts guidance along that route,
- * replacing any active guidance, and unmounting it or the user ending the trip stops guidance. Show one at a time.
+ * replacing any active guidance, and unmounting it or the user ending the trip stops guidance. If guidance started from
+ * free drive, the session returns to free drive instead. Show one at a time.
  *
  * @param props See {@link NavigationViewProps}.
  * @group Components

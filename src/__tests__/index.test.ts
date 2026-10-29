@@ -13,7 +13,10 @@ jest.mock('../specs/NativeRNMBXNavigationModule', () => ({
     setAccessToken: jest.fn(),
     getSdkVersion: jest.fn(() => '3.33.0'),
     getDefaultDistanceUnit: jest.fn(() => 'imperial'),
+    startFreeDrive: jest.fn(() => Promise.resolve()),
     stopNavigation: jest.fn(),
+    getSessionState: jest.fn(() => 'freeDrive'),
+    onSessionStateChange: jest.fn(() => ({ remove: jest.fn() })),
     setCameraState: jest.fn(),
     getCameraState: jest.fn(() => 'following'),
     onRouteProgress: jest.fn(() => ({ remove: jest.fn() })),
@@ -196,6 +199,33 @@ describe('Navigation', () => {
     nativeListener({ state: 'idle' });
     expect(listener).toHaveBeenCalledWith('idle');
     expect(subscription.remove).toBeDefined();
+  });
+
+  it('starts free drive on the device location unless simulated', async () => {
+    await Navigation.startFreeDrive();
+    expect(native.startFreeDrive).toHaveBeenCalledWith(false, 0, 0, false);
+    await Navigation.startFreeDrive({
+      simulatedLocation: [-122.4194, 37.7749],
+    });
+    expect(native.startFreeDrive).toHaveBeenLastCalledWith(
+      true,
+      -122.4194,
+      37.7749,
+      false
+    );
+  });
+
+  it('starts free drive with the foreground service only when asked', async () => {
+    await Navigation.startFreeDrive({ foregroundService: true });
+    expect(native.startFreeDrive).toHaveBeenLastCalledWith(false, 0, 0, true);
+  });
+
+  it('reports the session state', () => {
+    expect(Navigation.getSessionState()).toBe('freeDrive');
+    const listener = jest.fn();
+    Navigation.addSessionStateListener(listener);
+    native.onSessionStateChange.mock.calls[0]![0]({ state: 'activeGuidance' });
+    expect(listener).toHaveBeenCalledWith('activeGuidance');
   });
 
   it('passes the off route flag to the listener', () => {

@@ -15,6 +15,7 @@ import {
   routeBindings,
   toNativeWaypoint,
   type MatchedRouteRequestOptions,
+  type Position,
   type Route,
   type RouteChangeEvent,
   type RouteRequestOptions,
@@ -30,6 +31,29 @@ import {
 export type StartActiveGuidanceOptions = {
   /** Drive the route with simulated locations instead of the device's location; see {@link Navigation.setSimulationSpeed}. */
   simulate?: boolean;
+};
+
+/**
+ * The app's navigation session: `idle` tracks nothing; `freeDrive` matches the location to the road without a route,
+ * see {@link Navigation.startFreeDrive}; `activeGuidance` follows a route.
+ *
+ * @group Core
+ */
+export type SessionState = 'idle' | 'freeDrive' | 'activeGuidance';
+
+/**
+ * Options of {@link Navigation.startFreeDrive}.
+ *
+ * @group Core
+ */
+export type StartFreeDriveOptions = {
+  /** Simulate the device standing still at this position instead of using its location. */
+  simulatedLocation?: Position;
+  /**
+   * Android: keep tracking in the background, with the Navigation SDK's foreground service and its notification.
+   * Without it, Android throttles location updates in the background. Ignored when simulating and on iOS.
+   */
+  foregroundService?: boolean;
 };
 
 /**
@@ -186,11 +210,52 @@ export const Navigation = {
   },
 
   /**
-   * Stops guidance and removes the route from navigation maps. The camera switches to `idle` and eases back to
-   * north-up.
+   * Starts free drive: the location is matched to the road without a route, so {@link addLocationListener} reports
+   * the road name and speed limit, and navigation maps show the puck. It runs until {@link stopNavigation} or a JS
+   * reload; this API never starts it on its own.
+   *
+   * During guidance it ends the guidance and keeps the session in free drive. After simulated guidance, the simulated
+   * device stays where guidance stopped unless `simulatedLocation` moves it.
+   *
+   * Free drive trips are billed by Mapbox like guidance trips, see
+   * [Navigation SDK pricing](https://www.mapbox.com/pricing#navigation).
+   *
+   * Rejects with `code: 'location_permission'` if the app has no location permission and `simulatedLocation` isn't
+   * set; request the permission first.
+   */
+  startFreeDrive(options: StartFreeDriveOptions = {}): Promise<void> {
+    const [longitude, latitude] = options.simulatedLocation ?? [0, 0];
+    return NativeNavigation.startFreeDrive(
+      options.simulatedLocation != null,
+      longitude,
+      latitude,
+      options.foregroundService ?? false
+    );
+  },
+
+  /**
+   * Stops guidance or free drive and removes the route from navigation maps. The camera switches to `idle` and eases
+   * back to north-up.
    */
   stopNavigation(): void {
     NativeNavigation.stopNavigation();
+  },
+
+  /** The state of the navigation session, see {@link addSessionStateListener}. */
+  getSessionState(): SessionState {
+    return NativeNavigation.getSessionState() as SessionState;
+  },
+
+  /**
+   * Called when the session goes idle, starts free drive or starts guidance, whether from JS, `<NavigationView>` or
+   * the car screen.
+   */
+  addSessionStateListener(
+    listener: (state: SessionState) => void
+  ): EventSubscription {
+    return NativeNavigation.onSessionStateChange((event) =>
+      listener(event.state as SessionState)
+    );
   },
 
   /**
@@ -227,7 +292,7 @@ export const Navigation = {
     return NativeNavigation.onRouteProgress(listener);
   },
 
-  /** The location snapped to the road or route, with its speed limit and road name. */
+  /** The location snapped to the road or route, with its speed limit and road name, during free drive and guidance. */
   addLocationListener(
     listener: (event: LocationEvent) => void
   ): EventSubscription {

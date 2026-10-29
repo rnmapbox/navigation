@@ -261,10 +261,13 @@ Their `.netrc` / `MAPBOX_DOWNLOADS_TOKEN` setup can go; this package doesn't nee
 | `setRerouteEnabled(enabled)`                 | Turns rerouting of `requestRoutes` routes off or on. Android applies it at once; iOS only if called before the navigation session is created (before the first route request or guidance), and logs a warning for a later change. |
 | `previewRoute(route \| null)`                | Shows a route on navigation maps, or removes it.                       |
 | `startActiveGuidance(route, { simulate })`   | Starts guidance along `route`; `simulate` drives it with simulated locations. |
-| `stopNavigation()`                           | Stops guidance and clears the maps.                                    |
 | `advanceToNextLeg()`                         | Guides to the next waypoint, e.g. to skip a stop.                      |
 | `setAutoAdvanceLegs(enabled)`                | Whether guidance moves on by itself after arriving at a waypoint (default `true`). |
 | `setSimulationSpeed(multiplier)`             | Speed of simulated guidance, e.g. `2` for twice as fast.               |
+| `startFreeDrive({ simulatedLocation, foregroundService })` | Matches the location to the road without a route, ending any guidance; billed, see [Free drive](#free-drive). |
+| `stopNavigation()`                           | Stops guidance or free drive and clears the maps.                      |
+| `getSessionState()`                          | `'idle'`, `'freeDrive'` or `'activeGuidance'`.                         |
+| `addSessionStateListener(listener)`          | Session state changes.                                                 |
 | `getRouteStats()`                            | Counts of live, released and garbage-collected routes.                 |
 | `setCameraState(state)` / `getCameraState()` | `'following'`, `'overview'` or `'idle'`.                               |
 | `addCameraStateListener(listener)`           | Camera state changes.                                                  |
@@ -349,10 +352,31 @@ The state switches to `idle` when:
 
 After `stopNavigation`, the route and the puck are removed and the camera eases back to north-up, without tilt or padding.
 
+### Free drive
+
+Outside guidance the session is idle: no location events and no puck on navigation maps. `startFreeDrive()` matches the device's location to the road network without a route, so `addLocationListener` reports the road name and speed limit, and navigation maps show the puck. `stopNavigation()` ends it. During guidance, `startFreeDrive()` ends the guidance and keeps the session in free drive, as the native SDKs do.
+
+- Mapbox bills free drive trips like guidance trips (see [Navigation SDK pricing](https://www.mapbox.com/pricing#navigation)). Nothing in this package starts free drive on its own, CarPlay included; it runs from `startFreeDrive` until `stopNavigation` or a JS reload.
+- Without location permission, `startFreeDrive` rejects with `code: 'location_permission'`. Ask for the permission first.
+- `startFreeDrive({ simulatedLocation: [longitude, latitude] })` parks a simulated device at that position instead, without location permission. After simulated guidance, `startFreeDrive()` keeps the simulated device where guidance stopped.
+- Android: free drive runs without the Navigation SDK's foreground service, so in the background Android throttles its location updates. `startFreeDrive({ foregroundService: true })` keeps tracking in the background with the SDK's notification, which also keeps the billed trip going while the app isn't visible, until `stopNavigation`. Live guidance always uses the foreground service. iOS ignores the option.
+- `<NavigationView>` and `<RNNavigationView>` started from free drive return to it when they unmount or the user ends the trip, as `startFreeDrive()` would, keeping the `foregroundService` option.
+- `getSessionState()` and `addSessionStateListener` report `idle`, `freeDrive` or `activeGuidance`. On iOS they follow the SDK's session; on Android they follow this package's calls.
+
+```ts
+await Navigation.startFreeDrive();
+const subscription = Navigation.addLocationListener(({ roadName, speedLimit }) =>
+  console.log(roadName, speedLimit?.speed, speedLimit?.unit)
+);
+// …
+subscription.remove();
+Navigation.stopNavigation();
+```
+
 ### Guidance events
 
 - `addRouteProgressListener`: distances and durations remaining, and the banner of the next maneuver: `maneuverInstruction`, `maneuverType`, `maneuverModifier`, `secondaryInstruction`, `subInstruction`, `lanes` (`{ indications, valid, activeDirection }`, left to right), `legIndex` and `stepIndex`.
-- `addLocationListener`: the location snapped to the road or route, with `speed`, `course`, `roadName` and `speedLimit` (`{ speed, unit: 'km/h' | 'mph', sign: 'mutcd' | 'vienna' }`) where known.
+- `addLocationListener`: during guidance and free drive, the location snapped to the road or route, with `speed`, `course`, `roadName` and `speedLimit` (`{ speed, unit: 'km/h' | 'mph', sign: 'mutcd' | 'vienna' }`) where known.
 - `addArriveListener`: `{ waypointIndex, isFinalDestination }` when a waypoint is reached.
 - `addOffRouteListener`: `true` when the user leaves the route, `false` once guidance follows a route again.
 - `addRouteChangeListener`: `{ route, reason }` when guidance switches routes on its own, `reason` being `reroute` or `alternative`. `route` is a new `Route`; release it when you're done. The previous route stays valid until released.
@@ -396,7 +420,7 @@ import { NavigationView } from '@rnmapbox/navigation';
 
 It uses the app's single navigation session:
 - Mounting it, or giving it a new route, starts guidance along that route and replaces any other active guidance. Navigation maps show its route and puck too.
-- Unmounting it, or the user ending the trip, stops guidance.
+- Unmounting it, or the user ending the trip, stops guidance. If guidance started from free drive, the session returns to free drive instead.
 - `addRouteProgressListener` and `addCameraStateListener` also report its guidance.
 - Show one `NavigationView` at a time. On iOS it's embedded as a child of the nearest view controller.
 
@@ -416,7 +440,7 @@ Use it as is, or copy it as a starting point for your own UI.
 
 ### CarPlay
 
-Experimental, iOS only. With the Expo plugin's `carPlay: true`, CarPlay shows the Navigation SDK's own CarPlay UI for the same navigation session as the phone: the map while idle, and turn-by-turn guidance while guidance runs. Ending the trip on CarPlay stops navigation. `Navigation.isCarPlayConnected()` and `Navigation.addCarPlayConnectionListener` report the connection.
+Experimental, iOS only. With the Expo plugin's `carPlay: true`, CarPlay shows the Navigation SDK's own CarPlay UI for the same navigation session as the phone: the map while idle, and turn-by-turn guidance while guidance runs. Ending the trip on CarPlay stops navigation. The map only shows the puck during guidance and free drive; unlike the SDK's default, connecting CarPlay doesn't start free drive, so the CarPlay map has no puck until the app calls `Navigation.startFreeDrive()`, e.g. from `addCarPlayConnectionListener`. The free drive the SDK starts after the end-of-route feedback is stopped too, unless the app had started free drive. `Navigation.isCarPlayConnected()` and `Navigation.addCarPlayConnectionListener` report the connection.
 
 - It needs the scene-based life cycle, which Expo SDK 58 apps have. Bare apps add the CarPlay scene to `UIApplicationSceneManifest` themselves, with `RNMBXNavigationCarPlaySceneDelegate` as its delegate class.
 - CarPlay can launch the app without its phone UI. Set `MBXAccessToken` in Info.plist so the map shows right away; otherwise CarPlay stays blank until JS calls `Navigation.setAccessToken`.
@@ -465,7 +489,7 @@ adb shell am broadcast -a com.rnmapbox.navigation.DEBUG_CAR_PREVIEW --ez show tr
 
 ## Example app
 
-`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance and camera states, a "Route lifecycle" screen with `Route` checks and live counts, a "NavigationView" screen with simulated guidance, and a "RNNavigationView" screen with the React Native UI, simulated or on the device's location, and a log of arrival, off-route, reroute and voice events, a "Markers" screen with `@rnmapbox/maps` markers, a `ShapeSource` of points of interest, custom route line colors and React Native map controls during simulated guidance, and a "Matched route" screen that matches a fixed tour along the Embarcadero and simulates guidance along it.
+`example/` (React Native 0.84.1) has a navigation map with route preview, simulated guidance, camera states and a simulated free drive toggle showing the road name and speed limit, a "Route lifecycle" screen with `Route` checks and live counts, a "NavigationView" screen with simulated guidance, and a "RNNavigationView" screen with the React Native UI, simulated or on the device's location, and a log of arrival, off-route, reroute and voice events, a "Markers" screen with `@rnmapbox/maps` markers, a `ShapeSource` of points of interest, custom route line colors and React Native map controls during simulated guidance, and a "Matched route" screen that matches a fixed tour along the Embarcadero and simulates guidance along it.
 
 It reads your Mapbox access token from `example/accesstoken` (gitignored), the same way the `@rnmapbox/maps` example does:
 
