@@ -6,7 +6,7 @@
 
 #import <React/RCTConversions.h>
 
-#import "rnmapbox_navigation-Swift.h"
+#import "rnmapbox_navigation-Swift.pre.h"
 
 using namespace facebook::react;
 

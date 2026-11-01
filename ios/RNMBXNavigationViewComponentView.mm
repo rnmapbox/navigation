@@ -6,7 +6,7 @@
 #import <react/renderer/components/rnmapbox_navigation_specs/RCTComponentViewHelpers.h>
 
 #import "RNMBXNavigationRoutesPlatform.h"
-#import "rnmapbox_navigation-Swift.h"
+#import "rnmapbox_navigation-Swift.pre.h"
 
 using namespace facebook::react;
 

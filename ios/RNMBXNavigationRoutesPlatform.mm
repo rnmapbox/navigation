@@ -1,6 +1,6 @@
 #import "RNMBXNavigationRoutesPlatform.h"
 
-#import "rnmapbox_navigation-Swift.h"
+#import "rnmapbox_navigation-Swift.pre.h"
 
 namespace rnmbxnav {
 
