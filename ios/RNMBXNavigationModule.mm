@@ -3,7 +3,7 @@
 #import <ReactCommon/RCTTurboModuleWithJSIBindings.h>
 
 #import "RNMBXNavigationRoutesPlatform.h"
-#import "rnmapbox_navigation-Swift.h"
+#import "rnmapbox_navigation-Swift.pre.h"
 
 @interface RNMBXNavigationModule () <RCTTurboModuleWithJSIBindings>
 @end
