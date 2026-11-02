@@ -10,6 +10,7 @@ import {
 import Mapbox, {
   Camera,
   CircleLayer,
+  Images,
   MapView,
   ShapeSource,
   type CircleLayerStyle,
@@ -19,6 +20,7 @@ import Navigation, {
   NavigationViewport,
   type CameraState,
   type LocationEvent,
+  type NavigationPuck,
   type Position,
   type Route,
   type RouteProgressEvent,
@@ -54,6 +56,21 @@ const ENDPOINT_STYLE: CircleLayerStyle = {
   circleStrokeWidth: 3,
   circleStrokeColor: '#ffffff',
 };
+
+const PUCKS: { label: string; puck?: NavigationPuck }[] = [
+  { label: 'default' },
+  { label: 'arrow', puck: { bearingImage: 'puck-arrow', scale: 1 } },
+  {
+    label: '3D car',
+    puck: {
+      model: {
+        uri: 'https://raw.githubusercontent.com/rnmapbox/maps/main/example/src/assets/sportcar.glb',
+        scale: [10, 10, 10],
+      },
+    },
+  },
+  { label: 'hidden', puck: { visible: false } },
+];
 
 Mapbox.setAccessToken(env.accessToken);
 Navigation.setAccessToken(env.accessToken);
@@ -154,6 +171,8 @@ function NavigationScreen({
   const [mapLayout, setMapLayout] = useState<LayoutRectangle>();
   const [bannerLayout, setBannerLayout] = useState<LayoutRectangle>();
   const [controlsLayout, setControlsLayout] = useState<LayoutRectangle>();
+  const [puckIndex, setPuckIndex] = useState(0);
+  const puck = PUCKS[puckIndex]!;
   // Progress events already in flight when Stop is pressed still arrive afterwards.
   const navigatingRef = useRef(false);
 
@@ -259,7 +278,8 @@ function NavigationScreen({
           setMapLayout(event.nativeEvent.layout)
         }
       >
-        <NavigationViewport padding={viewportPadding} />
+        <NavigationViewport padding={viewportPadding} puck={puck.puck} />
+        <Images images={{ 'puck-arrow': require('./assets/puck-arrow.png') }} />
         <Camera
           defaultSettings={{ centerCoordinate: ORIGIN, zoomLevel: 14.5 }}
         />
@@ -366,6 +386,11 @@ function NavigationScreen({
                 testID={`camera-${state}`}
               />
             ))}
+            <Chip
+              label={`Puck: ${puck.label}`}
+              onPress={() => setPuckIndex((puckIndex + 1) % PUCKS.length)}
+              testID="puck"
+            />
             <Chip
               label="Stop"
               onPress={() => stopGuidance(false)}
