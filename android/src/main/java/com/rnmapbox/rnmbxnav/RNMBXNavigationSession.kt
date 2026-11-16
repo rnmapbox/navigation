@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.api.directions.v5.models.VoiceInstructions
 import com.mapbox.common.MapboxOptions
 import com.mapbox.common.location.Location
@@ -24,6 +25,7 @@ import com.mapbox.navigation.core.directions.session.RoutesExtra
 import com.mapbox.navigation.core.directions.session.RoutesObserver
 import com.mapbox.navigation.core.replay.history.ReplayEventsObserver
 import com.mapbox.navigation.core.replay.route.ReplayRouteMapper
+import com.mapbox.navigation.core.reroute.RerouteOptionsAdapter
 import com.mapbox.navigation.core.routealternatives.AlternativeRouteMetadata
 import com.mapbox.navigation.core.trip.session.LocationMatcherResult
 import com.mapbox.navigation.core.trip.session.LocationObserver
@@ -283,7 +285,16 @@ object RNMBXNavigationSession {
       return null
     }
     return MapboxNavigationProvider.create(NavigationOptions.Builder(context.applicationContext).build())
-      .apply { setRerouteEnabled(rerouteEnabled) }
+      .apply {
+        setRerouteOptionsAdapter(object : RerouteOptionsAdapter {
+          override fun onRouteOptions(routeOptions: RouteOptions): RouteOptions {
+            val language = guidanceRoute?.routes?.firstOrNull()?.directionsRoute?.routeOptions()?.language()
+              ?: return routeOptions
+            return routeOptions.toBuilder().language(language).build()
+          }
+        })
+        setRerouteEnabled(rerouteEnabled)
+      }
   }
 
   /** Throws [SecurityException] without location permission unless simulating. */
